@@ -1,0 +1,41 @@
+
+# Pip Build Setup --------------------------------------------------------------
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+# Pip Package Metadata ---------------------------------------------------------
+[project]
+name = "structuredca"
+version = "1.0.0"
+description = "Structure-Informed Direct Couplings Analysis."
+readme = "README.md"
+authors = [
+  { name = "Matsvei Tsishyn", email = "matsvei.tsishyn@protonmail.com" },
+  { name = "Hugo Talibart",   email = "hugo.talibart@protonmail.com"   }
+]
+requires-python = ">=3.9"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = [
+  "numpy",
+  "biopython>=1.75",
+  "littlecsv",
+]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: C++",
+  "Programming Language :: C",
+  "Operating System :: OS Independent",
+  "Topic :: Scientific/Engineering :: Bio-Informatics"
+]
+urls = { Homepage = "https://github.com/3BioCompBio/StructureDCA" }
+
+# Entry Points for CLI ---------------------------------------------------------
+[project.scripts]
+structuredca = "structuredca.cli:main"
+
+# Setup pip Package ------------------------------------------------------------
+# this finds all the python packages recursively
+[tool.setuptools]
+packages = { find = {} }

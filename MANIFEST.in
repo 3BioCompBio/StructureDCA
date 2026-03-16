@@ -1,0 +1,20 @@
+# Include files required for building C++ extension
+include structuredca/dca_model/dca_solvers/plmdca/include/*
+include structuredca/dca_model/dca_solvers/plmdca/lbfgs/include/*
+recursive-include structuredca/dca_model/dca_solvers/plmdca *.cpp
+
+# Exclude files and directories that should not be in the package
+exclude Logo.png
+exclude conda-env.yml
+exclude test_data/*
+exclude tutorials/*
+global-exclude *.py[cod]
+global-exclude __pycache__/*
+global-exclude 0_*
+global-exclude *.so
+global-exclude *.a
+global-exclude *.o
+
+# Exclude build artifacts
+global-exclude structuredca/dca_model/dca_solvers/plmdca/build/*
+global-exclude *.egg-info/*

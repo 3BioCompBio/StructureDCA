@@ -1,0 +1,13 @@
+# Ignore cache build and config files
+__pycache__/
+build/
+dist/
+structuredca.egg-info/
+
+# Ignore notes, experiments and tests files
+0_*
+
+# Ignore compiled files
+*.so
+*.a
+*.o
