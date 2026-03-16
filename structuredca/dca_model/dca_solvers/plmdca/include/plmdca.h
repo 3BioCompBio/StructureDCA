@@ -104,15 +104,15 @@
         const int num_threads;
         const char* weights_cache_path;
         const bool verbose;
+        std::vector<std::vector<int>> coupling_list;
+        std::vector<std::vector<int>> coupling_list_left;
+        std::vector<std::vector<int>> coupling_list_right;
         int A;
         int A_nogap;
 
         // Properties
         float dt;
         std::vector<std::vector<bool>> couplings_cutoff;
-        std::vector<std::vector<int>> coupling_list;
-        std::vector<std::vector<int>> coupling_list_left;
-        std::vector<std::vector<int>> coupling_list_right;
         std::vector<std::vector<uint8_t>> sequences;
         int msa_depth;
         std::vector<float> weights;
