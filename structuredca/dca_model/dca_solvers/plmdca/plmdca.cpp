@@ -519,7 +519,7 @@ float PlmDCA::gradient(const float* hJ, float* grad)
     /*Computes the gradient of the negative psuedolikelihood from alignment data and L2-regularization
     Parameters
         hJ      : Array of fields and couplings
-        grad    : Array of gradients 
+        grad    : Array of gradients
     Returns
         loss    : Value of objective function
     */
@@ -527,21 +527,12 @@ float PlmDCA::gradient(const float* hJ, float* grad)
     // Init values ---------------------------------------------------------------------------------
     auto t1 = std::chrono::high_resolution_clock::now();
     const auto L = this->msa_length;
-    const auto A = this->A;
-    const auto A_nogap = this->A_nogap;
-    const auto lh = this->lambda_h_corrected;
-    const auto lJ = this->lambda_J_corrected;
-    const auto A2 = A * A;
-    const auto Neff_inv = 1.0f / this->Neff;
-
-    // Init objective function value
     float loss = 0.0f;
 
-
     // L2 regularization terms ---------------------------------------------------------------------
-    const auto lh_Neff_inv = lh * Neff_inv;
+    const auto lh_Neff_inv = this->lambda_h_corrected / this->Neff;
     const auto two_lh_Neff_inv = 2.0f * lh_Neff_inv;
-    const auto lJ_Neff_inv = 2.0f * lJ * Neff_inv;
+    const auto lJ_Neff_inv = (2.0f * this->lambda_J_corrected) / this->Neff;
     const auto two_lJ_Neff_inv = 2.0f * lJ_Neff_inv;
     
     // L2 for h
@@ -562,177 +553,226 @@ float PlmDCA::gradient(const float* hJ, float* grad)
         loss += lJ_Neff_inv * Jijab * Jijab;
     }
 
-
     // Gradients of log-pseudolikelihood from alignment data ---------------------------------------
+    
+    // Loop on positions
     #pragma omp parallel for num_threads(this->num_threads)
-    for(int i = 0; i < L; ++i){ // Loop on positions
-
-        // Init local variables for position i
-        std::vector<float> prob_ni(A, 0.0f);                       // Prabability for each a (at position i for sequence n)
-        std::vector<float> w_prob_ni(A, 0.0f);                     // Weighted Probability
-        std::vector<float> fields_gradient_i(A, 0.0f);             // Grad(h)
-        std::vector<float> couplings_gradient_i(L * A * A, 0.0f);  // Grad(J)
-        float lossi = 0.0f;                                        // Objective function for position i
-        const int Ai = A * i;
-        //const auto& coupling_list_i = this->coupling_list[i];
-        const auto& coupling_list_left_i = this->coupling_list_left[i];
-        const auto& coupling_list_right_i = this->coupling_list_right[i];
-		const auto w_i = this->pos_weights[i];
-
-
-        // Init ij_index map at position i
-        const auto& ij_index_i = this->ij_index[i];
+    for(int i = 0; i < L; ++i){
         
-        for(int n = 0; n < this->msa_depth; ++n){ // Loop on sequences
+        // Compute positional gradient
+        auto [fields_gradient_i, couplings_gradient_i, lossi] = compute_position_gradient(hJ, i);
 
-            // Init probability at position i for seq n
-            std::vector<float> prob_ni(A, 0.0f);                     // Prabability for each a
-            for(int a = 0; a < A; ++a){
-                prob_ni[a] = 0.0f;
-            }
+        // Update positional gradient (to global gradient)
+        update_position_gradient(fields_gradient_i, couplings_gradient_i, lossi, grad, loss, i);
+    
+    }
 
-            // Init
-            const auto& current_seq = this->sequences[n];
-            const auto w_n = this->weights[n];
-			const auto w_ni = w_n * w_i;
-            const auto a_ni = current_seq[i];
-
-            // Ignore optimization target aa a_ni is a gap
-            if(this->exclude_gaps && a_ni == A-1){
-                continue;
-            }
-
-
-            // Compute Pi(n) -----------------------------------------------------------------------
-
-            // Compute for h
-            for(int a = 0; a < A_nogap; ++a){
-                prob_ni[a] += hJ[Ai + a];
-            }
-            
-            // Compute for J (j<i)
-            int k_j;
-            for(int j : coupling_list_left_i){
-				if(this->exclude_gaps && current_seq[j] == A_nogap){
-					continue;
-				}
-                k_j = ij_index_i[j]+ A*current_seq[j];
-                for(int a = 0; a < A_nogap; ++a){
-                    prob_ni[a] += hJ[k_j + a];
-                }
-            }
-
-            // Compute for J (i<j)
-            for(int j : coupling_list_right_i){
-				if(this->exclude_gaps && current_seq[j] == A_nogap){
-					continue;
-				}
-                k_j = ij_index_i[j] + current_seq[j];
-                for(int a = 0; a < A_nogap; ++a){
-                    prob_ni[a] += hJ[k_j + A*a];
-                }
-            }
-
-            // Exponentiate
-            for(int a = 0; a <  A_nogap; ++a){
-                prob_ni[a] = std::exp(prob_ni[a]);
-            }
-            
-            // Normalize to sum=1
-            const float sum_prob_ni = std::accumulate(prob_ni.begin(), prob_ni.end(), 0.0f);
-            for(int a = 0; a < A_nogap; ++a){
-                prob_ni[a] /= sum_prob_ni;
-            }
-
-            // Accumulate log(P) in objective function for current a_ni of seq n
-            lossi -= w_ni * std::log(prob_ni[a_ni]);
-
-            // Weighted probability
-            for(int a = 0; a < A_nogap; ++a){
-                w_prob_ni[a] = w_ni * prob_ni[a];
-            }
-
-            
-            // Compute Gradianst ot position i -----------------------------------------------------
-
-            // Set Grad(h): Grad(h_ni(a)) = w_n*w_i*(P_ni(a) - delta(a=a_ni)) (summed over all sequences n)
-            fields_gradient_i[a_ni] -= w_ni;
-            for(int a = 0; a < A_nogap; ++a){
-                fields_gradient_i[a] += w_prob_ni[a];
-            }
-            
-            // Set Grad(J): Grad(J_nij(a, b)) = w*(P_ni(a) - delta(a=a_ni)) (summed over all sequences n)
-            for(int j : coupling_list_left_i){
-				if(this->exclude_gaps && current_seq[j] == A_nogap){
-					continue;
-				}
-                k_j = A2*j + A*current_seq[j];
-                couplings_gradient_i[k_j + a_ni] -= w_ni; // Case a = a_ni
-                for(int a = 0; a < A_nogap; ++a){
-                    couplings_gradient_i[k_j + a] += w_prob_ni[a]; // All cases
-                }
-            }
-            for(int j : coupling_list_right_i){
-				if(this->exclude_gaps && current_seq[j] == A_nogap){
-					continue;
-				}
-                k_j = A2*j + current_seq[j];
-                couplings_gradient_i[k_j + A*a_ni] -= w_ni; // Case a = a_ni
-                for(int a = 0; a < A_nogap; ++a){
-                   couplings_gradient_i[k_j + A*a] += w_prob_ni[a]; // All cases
-                }
-            }
-
-        } // End: Loop on positions
-
-
-        // Aggregate gradien and objective function ------------------------------------------------
-        #pragma omp critical
-        {
-        
-            // Aggregate object function
-            loss += lossi * Neff_inv;
-        
-            // Aggregate Grad(h)
-            for(int a = 0; a < A; ++a){
-                grad[Ai + a] += fields_gradient_i[a] * Neff_inv;
-            }
-        
-            // Aggregate Grad(J)
-            int k;
-            int k_2;
-            int k_plus_Aa;
-            int A2j;
-            for(int j : coupling_list_left_i){
-                k = ij_index_i[j];
-                A2j = A2*j;
-                for(int a = 0; a < A; ++a){
-                    k_2 = A2j + A*a;
-                    k_plus_Aa = k + A*a;
-                    for(int b = 0; b < A; ++b){
-                        grad[k_plus_Aa + b] += couplings_gradient_i[k_2 + b] * Neff_inv;
-                    }
-                }
-            }
-            for(int j : coupling_list_right_i){
-                k = ij_index_i[j];
-                A2j = A2*j;
-                for(int a = 0; a < A; ++a){
-                    k_2 = A2j + A*a;
-                    k_plus_Aa = k + A*a;
-                    for(int b = 0; b < A; ++b){
-                        grad[k_plus_Aa + b] += couplings_gradient_i[k_2 + b] * Neff_inv;
-                    }
-                }
-            }
-
-        } // End: Aggregation of gradiens and objective function
-    } // End: Loop on positions
-
+    // Update time
     auto t2 = std::chrono::high_resolution_clock::now();
     this->dt += std::chrono::duration<float>(t2 - t1).count();
 
     return loss;
+}
+
+// Compute gradients from site probabilities
+std::tuple<std::vector<float>, std::vector<float>, float>
+PlmDCA::compute_position_gradient(
+    const float* hJ,
+    const int i
+)
+{
+    /*Computes the h and J gradients for position i
+    Parameters
+        hJ      : Array of fields and couplings
+        i       : position index
+    Returns (tuple)
+        fields_gradient_i       [A] (std::vector<float>)
+        couplings_gradient_i    [L*A*A] (std::vector<float>)
+        lossi                   float
+    */
+
+    // Init local variables for position i
+    const auto L = this->msa_length;
+    const auto A2 = A * A;
+    std::vector<float> prob_ni(A, 0.0f);                       // Prabability for each a (at position i for sequence n)
+    std::vector<float> w_prob_ni(A, 0.0f);                     // Weighted Probability
+    std::vector<float> fields_gradient_i(A, 0.0f);             // Grad(h)
+    std::vector<float> couplings_gradient_i(L * A * A, 0.0f);  // Grad(J)
+    float lossi = 0.0f;                                        // Objective function for position i
+    const int Ai = A * i;
+    const auto& coupling_list_left_i = this->coupling_list_left[i];
+    const auto& coupling_list_right_i = this->coupling_list_right[i];
+    const auto w_i = this->pos_weights[i];
+    const auto& ij_index_i = this->ij_index[i];
+    
+    // Loop on sequences
+    for(int n = 0; n < this->msa_depth; ++n){
+
+        // Reset probability array to zero
+        for(int a = 0; a < A; ++a){
+            prob_ni[a] = 0.0f;
+        }
+
+        // Init
+        const auto& current_seq = this->sequences[n];
+        const auto w_n = this->weights[n];
+        const auto w_ni = w_n * w_i;
+        const auto a_ni = current_seq[i];
+
+        // Ignore optimization target aa a_ni is a gap
+        if(this->exclude_gaps && a_ni == A-1){
+            continue;
+        }
+
+        // Compute Pi(n) for h
+        for(int a = 0; a < A_nogap; ++a){
+            prob_ni[a] += hJ[Ai + a];
+        }
+        
+        // Compute Pi(n) for J (j<i)
+        int k_j;
+        for(int j : coupling_list_left_i){
+            if(this->exclude_gaps && current_seq[j] == A_nogap){
+                continue;
+            }
+            k_j = ij_index_i[j]+ A*current_seq[j];
+            for(int a = 0; a < A_nogap; ++a){
+                prob_ni[a] += hJ[k_j + a];
+            }
+        }
+
+        // Compute Pi(n) for J (i<j)
+        for(int j : coupling_list_right_i){
+            if(this->exclude_gaps && current_seq[j] == A_nogap){
+                continue;
+            }
+            k_j = ij_index_i[j] + current_seq[j];
+            for(int a = 0; a < A_nogap; ++a){
+                prob_ni[a] += hJ[k_j + A*a];
+            }
+        }
+
+        // Exponentiate
+        for(int a = 0; a <  A_nogap; ++a){
+            prob_ni[a] = std::exp(prob_ni[a]);
+        }
+        
+        // Normalize to sum=1
+        const float sum_prob_ni = std::accumulate(prob_ni.begin(), prob_ni.end(), 0.0f);
+        for(int a = 0; a < A_nogap; ++a){
+            prob_ni[a] /= sum_prob_ni;
+        }
+
+        // Accumulate log(P) in objective function for current a_ni of seq n
+        lossi -= w_ni * std::log(prob_ni[a_ni]);
+
+        // Weighted probability
+        for(int a = 0; a < A_nogap; ++a){
+            w_prob_ni[a] = w_ni * prob_ni[a];
+        }
+
+        
+        // Compute Gradianst at position i -----------------------------------------------------
+
+        // Set Grad(h): Grad(h_ni(a)) = w_n*w_i*(P_ni(a) - delta(a=a_ni)) (summed over all sequences n)
+        fields_gradient_i[a_ni] -= w_ni;
+        for(int a = 0; a < A_nogap; ++a){
+            fields_gradient_i[a] += w_prob_ni[a];
+        }
+        
+        // Set Grad(J): Grad(J_nij(a, b)) = w*(P_ni(a) - delta(a=a_ni)) (summed over all sequences n)
+        for(int j : coupling_list_left_i){
+            if(this->exclude_gaps && current_seq[j] == A_nogap){
+                continue;
+            }
+            k_j = A2*j + A*current_seq[j];
+            couplings_gradient_i[k_j + a_ni] -= w_ni; // Case a = a_ni
+            for(int a = 0; a < A_nogap; ++a){
+                couplings_gradient_i[k_j + a] += w_prob_ni[a]; // All cases
+            }
+        }
+        for(int j : coupling_list_right_i){
+            if(this->exclude_gaps && current_seq[j] == A_nogap){
+                continue;
+            }
+            k_j = A2*j + current_seq[j];
+            couplings_gradient_i[k_j + A*a_ni] -= w_ni; // Case a = a_ni
+            for(int a = 0; a < A_nogap; ++a){
+                couplings_gradient_i[k_j + A*a] += w_prob_ni[a]; // All cases
+            }
+        }
+
+    }
+
+    return {fields_gradient_i, couplings_gradient_i, lossi};
+}
+
+// Update positional grandiant to global
+void PlmDCA::update_position_gradient(
+    const std::vector<float>& fields_gradient_i,
+    const std::vector<float>& couplings_gradient_i,
+    float lossi,
+    float* grad,
+    float& loss,
+    int i
+){
+    /*Update global gradient by fields_gradient_i and couplings_gradient_i at position i
+    Parameters
+        fields_gradient_i     : h-gradient at position i
+        couplings_gradient_i  : J-gradient at position i
+        lossi                 : loss at position i
+        grad                  : global gradient array
+        loss                  : global loss
+    */
+
+    // Init local variables for position i
+    const auto Neff_inv = 1.0f / this->Neff;
+    const auto A2 = A * A;
+    const int Ai = A * i;
+    const auto& coupling_list_left_i = this->coupling_list_left[i];
+    const auto& coupling_list_right_i = this->coupling_list_right[i];
+    const auto& ij_index_i = this->ij_index[i];
+    
+    // Aggregate gradien and objective function
+    #pragma omp critical
+    {
+    
+        // Aggregate object function
+        loss += lossi * Neff_inv;
+    
+        // Aggregate Grad(h)
+        for(int a = 0; a < A; ++a){
+            grad[Ai + a] += fields_gradient_i[a] * Neff_inv;
+        }
+    
+        // Aggregate Grad(J)
+        int k;
+        int k_2;
+        int k_plus_Aa;
+        int A2j;
+        for(int j : coupling_list_left_i){
+            k = ij_index_i[j];
+            A2j = A2*j;
+            for(int a = 0; a < A; ++a){
+                k_2 = A2j + A*a;
+                k_plus_Aa = k + A*a;
+                for(int b = 0; b < A; ++b){
+                    grad[k_plus_Aa + b] += couplings_gradient_i[k_2 + b] * Neff_inv;
+                }
+            }
+        }
+        for(int j : coupling_list_right_i){
+            k = ij_index_i[j];
+            A2j = A2*j;
+            for(int a = 0; a < A; ++a){
+                k_2 = A2j + A*a;
+                k_plus_Aa = k + A*a;
+                for(int b = 0; b < A; ++b){
+                    grad[k_plus_Aa + b] += couplings_gradient_i[k_2 + b] * Neff_inv;
+                }
+            }
+        }
+    }
 }
 
 
