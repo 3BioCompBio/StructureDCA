@@ -2,24 +2,23 @@
 #define PLMDCA_BACKEND_H
 
     // Imports -----------------------------------------------------------------
-    #include <cstdio>
-    #include <cstdlib>
-    #include <filesystem>
-    #include <fstream>
-    #include <iostream>
-    #include <sstream>
-    #include <string>
-    #include <vector>
-    #include <unordered_map>
-    #include <unordered_set>
-    #include <algorithm>
-    #include <cmath>
-    #include <numeric>
-    #include <tuple>
-    #include <cstdint>  // For uint8_t
-    #include <thread>   // Standard C++ multi-threading
-    #include <chrono>   // To time code execution
-    #include "../lbfgs/include/lbfgs.h"
+    #include<cstdio>
+    #include<cstdlib>
+    #include<filesystem>
+    #include<fstream>
+    #include<iostream>
+    #include<sstream>
+    #include<string>
+    #include<vector>
+    #include<unordered_map>
+    #include<unordered_set>
+    #include<algorithm>
+    #include<cmath>
+    #include<numeric>
+    #include<cstdint>  // For uint8_t
+    #include<thread>   // Standard C++ multi-threading
+    #include <chrono>  // To time code execution
+    #include"../lbfgs/include/lbfgs.h"
 
     // Main: PlmDCA ------------------------------------------------------------
     class PlmDCA {
@@ -67,22 +66,10 @@
             float* hJ
         );
 
-        // Gradiend Descent Methods
+        // Gradiend Descent Method
         float gradient(
             const float* hJ,
             float* grad
-        );
-        std::tuple<std::vector<float>, std::vector<float>, float> compute_position_gradient(
-            const float* hJ,
-            const int i
-        );
-        void update_position_gradient(
-            const std::vector<float>& fields_gradient_i,
-            const std::vector<float>& couplings_gradient_i,
-            float lossi,
-            float* grad,
-            float& loss,
-            int i
         );
 
         // Utility
