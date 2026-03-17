@@ -279,7 +279,7 @@ StructureDCA Properties:
             background_sequence: Union[None, str]=None,
             save_path: Union[None, str]=None,
             round_digit: Union[None, int]=6,
-            sep: str=";",
+            sep: str=",",
             log_output_sample: bool=False,
             n_output_sample_lines: int=10,
         ) -> List[Dict[str, Union[str, float]]]:
@@ -294,7 +294,7 @@ StructureDCA Properties:
             background_sequence (str=None): alternative target sequence to mutate from
             save_path (str, None): Path to a '.csv' file to save results.
             round_digit (int, 6): Parameter to round all numerical values.
-            sep (str, ';'): Separator of the '.csv' file.
+            sep (str, ','): Separator of the '.csv' file.
             log_output_sample (bool, False): Log a sample of the generated output.
             n_output_sample_lines (int, 10): if log_output_sample, how many lines are logged
         
@@ -415,7 +415,7 @@ StructureDCA Properties:
             self,
             save_path: Union[None, str]=None,
             round_digit: Union[None, int]=6,
-            sep: str=";",
+            sep: str=",",
             log_output_sample: bool=False,
             n_output_sample_lines: int=10,
         ) -> List[Dict[str, Union[str, float]]]:
@@ -426,7 +426,7 @@ StructureDCA Properties:
         Parameters:
             save_path (str, None): Path to a '.csv' file to save results.
             round_digit (int, 6): Parameter to round all numerical values.
-            sep (str, ';'): Separator of the '.csv' file.
+            sep (str, ','): Separator of the '.csv' file.
             log_output_sample (bool, False): Log a sample of the generated output.
             n_output_sample_lines (int, 10): if log_output_sample, how many lines are logged
         

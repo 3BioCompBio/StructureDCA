@@ -139,7 +139,7 @@ def main():
     parser.set_defaults(disable_warnings=False)
 
     parser.add_argument(
-        "--sep", type=str, default=";", metavar="<str>",
+        "--sep", type=str, default=",", metavar="<str>",
         help="separator in the output '.csv' file",
     )
 
