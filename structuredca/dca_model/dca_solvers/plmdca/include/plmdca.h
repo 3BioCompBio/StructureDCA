@@ -2,23 +2,23 @@
 #define PLMDCA_BACKEND_H
 
     // Imports -----------------------------------------------------------------
-    #include<cstdio>
-    #include<cstdlib>
-    #include<filesystem>
-    #include<fstream>
-    #include<iostream>
-    #include<sstream>
-    #include<string>
-    #include<vector>
-    #include<unordered_map>
-    #include<unordered_set>
-    #include<algorithm>
-    #include<cmath>
-    #include<numeric>
-    #include<cstdint>  // For uint8_t
-    #include<thread>   // Standard C++ multi-threading
+    #include <cstdio>
+    #include <cstdlib>
+    #include <filesystem>
+    #include <fstream>
+    #include <iostream>
+    #include <sstream>
+    #include <string>
+    #include <vector>
+    #include <unordered_map>
+    #include <unordered_set>
+    #include <algorithm>
+    #include <cmath>
+    #include <numeric>
+    #include <cstdint>  // For uint8_t
+    #include <thread>   // Standard C++ multi-threading
     #include <chrono>  // To time code execution
-    #include"../lbfgs/include/lbfgs.h"
+    #include "../lbfgs/include/lbfgs.h"
 
     // Main: PlmDCA ------------------------------------------------------------
     class PlmDCA {
@@ -83,6 +83,7 @@
         int n_J;
         int n_hJ;
         float Neff;
+        float Neff_inv;
             
     private:
 
@@ -107,8 +108,10 @@
         std::vector<std::vector<int>> coupling_list;
         std::vector<std::vector<int>> coupling_list_left;
         std::vector<std::vector<int>> coupling_list_right;
-        int A;
-        int A_nogap;
+        const int A;
+        const int A_nogap;
+        const int A2;
+        const uint8_t gap_state;
 
         // Properties
         float dt;
