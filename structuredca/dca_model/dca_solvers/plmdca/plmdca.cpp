@@ -585,8 +585,7 @@ float PlmDCA::gradient(const float* hJ, float* grad)
         
         for(int n = 0; n < this->msa_depth; ++n){ // Loop on sequences
 
-            // Init probability at position i for seq n
-            std::vector<float> prob_ni(A, 0.0f);                     // Prabability for each a
+            // Reinitialize probability at position i for seq n to zero
             for(int a = 0; a < A; ++a){
                 prob_ni[a] = 0.0f;
             }

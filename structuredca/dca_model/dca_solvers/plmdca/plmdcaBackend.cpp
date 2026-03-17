@@ -165,7 +165,8 @@ class ObjectiveFunction{
             Returns
                 loss         : Value of plmDCA objective function (Loss Function / Error)
             */
-            auto loss = reinterpret_cast<ObjectiveFunction*>(instance)->plmdca_inst.gradient(hJ, grad);
+            auto* obj = static_cast<ObjectiveFunction*>(instance);
+            auto loss = obj->plmdca_inst.gradient(hJ, grad);
             return loss;
         }
 
@@ -183,10 +184,11 @@ class ObjectiveFunction{
         )
         {
             /*Function to run after each iteration of GD.*/
-            if(reinterpret_cast<ObjectiveFunction*>(instance)->log_gd_steps){
+            auto* obj = static_cast<ObjectiveFunction*>(instance);
+            if(obj->log_gd_steps){
                 fprintf(stdout, "      * Iteration %d: loss = %f, xnorm = %f, gnorm = %f, step = %fn_hJ \n", k, loss, xnorm, gnorm, step);
             }
-            reinterpret_cast<ObjectiveFunction*>(instance)->n_iterations ++;
+            obj->n_iterations ++;
             return 0;
         }
 };
