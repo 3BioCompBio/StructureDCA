@@ -56,72 +56,109 @@ class StructureDCA:
             disable_warnings: bool=False,
         ):
         
-        """StructureDCA: Structure-Informed DCA model of an MSA.
+        """Structure-informed DCA model of a multiple sequence alignment (MSA).
 
--------------------------------------------------------------------------------
-usage (Python):
-   from structuredca import StructureDCA                                   # Import pip package
-   sdca = StructureDCA('./msa1.fasta', './pdb1.pdb', 'A')                  # Initialize StructureDCA with an MSA, a PDB and the corresponding chain(s) in the PDB
-   mutation_score = sdca.eval_mutation('K24M:H39G', reweight_by_rsa=False) # Compute the score of a missense single/multiple mutation
-   all_muts_scores_table = sdca.eval_mutations_table()                     # Get scores for all single-site missense mutations
+        Parameters
+        ----------
+        msa_path : str
+            path to MSA file ('.fasta', '.a2m', '.a3m', optionally gzipped)
+        pdb_path : str or None
+            path to PDB file ('.pdb')
+        chains : str, default="A"
+            target chain(s) in the PDB corresponding to the target sequence of the MSA
+        homomeric_chains : str or None, optional
+            homomer groups to consider inter-chains contacts (e.g. 'ABC' for homo-trimer or 'AC:BD' for two homo-dimers)
 
--------------------------------------------------------------------------------
-Input arguments:
-   msa_path (str)                              path to MSA '.fasta', '.a2m' or '.a3m' file (can be zipped with '.gz')
-   pdb_path (str)                              path to PDB '.pdb' file
-   chains (str)                                target chain(s) in the PDB to consider (that corresponds to the target chain(s) in the MSA)
-   homomeric_chains (None | str, None)         homomer groups to consider inter-chains contacts (e.g. 'ABC' for homo-trimer or 'AC:BD' for two homo-dimers)
-    
-StructureDCA arguments:
-   distance_cutoff (None | float, 8.0)         distance threshold (in Å) to consider a residue-residue contact
-   lambda_h (float, 1.0)                       L2 regularization for h
-   lambda_J (float, 1.0)                       L2 regularization for J
-   lambda_asymptotic (float, 0.001)            L2 regularization asymptotic correction (when Neff -> +inf)
-   exclude_gaps (bool, True)                   exclude gaps from the DCA model (if False, consider gap as the 21th amino acid)
-   min_seqid (None | float, 0.25)              sequences which sequence-identity with target sequence is below this will be discarded (set None to ignore)
-   weights_seqid (None | float, 0.80)          sequence-identity threshold for sequences weighting (set None to ignore)
-   use_contacts_plddt_filter (bool, False)     remove contacts at positions where pLDDT is lower than a given threshold in predicted structures
-   contacts_plddt_cutoff (float, 70.0)         pLDDT threshold below which contacts are discarded
-   contacts_plddt_keep_window (int, 1)         if contacts_plddt_cutoff is used: size of the position window where contacts falling below the pLDDT threshold are still kept
-   contacts_gap_cutoff (None | float, None)    remove contacts at positions where gap-ratio is higher than this threshold
-   theta_regularization (float, 0.10)          regularization at frequency level (only for initialization of DCA coefficients h)
-   count_target_sequence (bool, True)          count target (first) sequence of the MSA for the DCA model
+        distance_cutoff : float or None, default=8.0
+            distance threshold (in Å) to consider a residue-residue contact
+        lambda_h : float, default=1.0
+            L2 regularization for fields h
+        lambda_J : float, default=1.0
+            L2 regularization for couplings J
+        lambda_asymptotic : float, default=0.001
+            L2 regularization asymptotic correction (when Neff -> +inf)
+        exclude_gaps : bool, default=True
+            exclude gaps from the DCA model (if False, consider gap as the 21th amino acid)
+        min_seqid : float or None, default=0.25
+            sequences which sequence-identity with target sequence is below this will be discarded (set None to ignore)
+        weights_seqid : float or None, default=0.80
+            sequence-identity threshold for sequences weighting (set None to ignore)
+        use_contacts_plddt_filter : bool, default=False
+            remove contacts at positions where pLDDT is lower than a given threshold in predicted structures
+        contacts_plddt_cutoff : float, default=70.0
+            pLDDT threshold below which contacts are discarded
+        contacts_plddt_keep_window : int, default=1
+            if contacts_plddt_cutoff is used: size of the position window where contacts falling below the pLDDT threshold are still kept
+        contacts_gap_cutoff : float or None, optional
+            remove contacts at positions where gap-ratio is higher than this threshold
+        theta_regularization : float, default=0.10
+            regularization at frequency level (only for initialization of DCA coefficients h)
+        count_target_sequence : bool, default=True
+            count target (first) sequence of the MSA for the DCA model
 
-Structure arguments:
-   ignore_hydrogen_atoms (bool, True)          ignore hydrogen atoms to compute res-res distances 
-   ignore_backbone_atoms (bool, True)          ignore backbone atoms to compute res-res distances 
+        ignore_hydrogen_atoms : bool, default=True
+            ignore hydrogen atoms to compute res-res distances 
+        ignore_backbone_atoms : bool, default=True
+            ignore backbone atoms to compute res-res distances 
 
-Execution arguments:
-   num_threads (int, 4)                        number of threads (CPUs) for DCA solver
-   solver (str, 'plmDCA')                      DCA solver among ['plmDCA']
-   max_iterations (int, 2000)                  maximum number of GD iterations to solve DCA model
-   use_sparse_J (bool, True)                   specify if use a sparse implementation or a usual numpy.ndarray for couplings coefficients J
-   init_dca (bool, True)                       initialize DCA model 
+        num_threads : int, default=4
+            number of CPU threads for solver
+        solver : {"plmDCA"} or DCASolver, default="plmDCA"
+            DCA solver to use
+        max_iterations : int, default=2000
+            maximum number of gradient descent iterations
+        use_sparse_J : bool, default=True
+            use sparse representation for coupling matrix J
+        init_dca : bool, default=True
+            initialize DCA model on construction
 
-Cache arguments:
-   distance_cache_path (None | str, None)      path to write/read to/from res-res distances file (should be a '.npy' file)
-   rsa_cache_path (None | str, None)           path to write/read to/from RSA values
-   weights_cache_path (None | str, None)       path to write/read to/from MSA sequences weights
-   dca_cache_path (None | str, None)           path to write/read to/from DCA parameters and coefficients h and J
+        distance_cache_path : str or None, optional
+            path to cache residue distance matrix (.npy)
+        rsa_cache_path : str or None, optional
+            path to cache RSA values
+        weights_cache_path : str or None, optional
+            path to cache sequence weights
+        dca_cache_path : str or None, optional
+            path to cache DCA parameters (h, J)
 
-Logging arguments:
-   verbose (bool, True)                        log execution steps
-   log_gd_steps (bool, False)                  log gradient descent steps for plmDCA
-   disable_warnings (bool, False)              disable logging for Warnings (use with caution)
+        verbose : bool, default=True
+            enable logging
+        log_gd_steps : bool, default=False
+            log gradient descent steps
+        disable_warnings : bool, default=False
+            disable warnings (use with caution)
 
--------------------------------------------------------------------------------
-StructureDCA Properties:
-   sdca.msa_length [L] (int)                           aa-length of the target sequence of the MSA
-   sdca.msa_depth [N] (int)                            number of sequences in the MSA
-   sdca.n_states [q] (int)                             21, number of possible states (20 AAs and 1 gap)
-   sdca.h (np.array[float32] (L, q))                   DCA fields coefficients h
-   sdca.J (SparseJ[float32] (L, L, q, q))              DCA couplings coefficients J (access with J[i, j] and J[i, j][a, b] but not J[i, j, a, b])
-   sdca.alignment (PairwiseAlignment)                  alignment between target chain(s) in PDB and target sequence in MSA
-   sdca.distance_matrix (np.array[float32] (L, L))     res-res distance matrix
-   sdca.contacts (np.array[bool] (L, L))               res-res contact matrix
-   sdca.rsa_array (np.array[float32] (L))              array of RSA values for each residue / MSA position
-   sdca.plddt_array (np.array[float32] (L))            array of pDLLT (or B-factor) values for each residue / MSA position
-   sdca.gap_ratios_array (np.array[float32] (L))       array of gap ratios values for each MSA position
+        Examples
+        --------
+        >>> from structuredca import StructureDCA
+        >>> sdca = StructureDCA("msa.fasta", "structure.pdb", "A")
+        >>> sdca.eval_mutation("K24M")
+        >>> sdca.eval_mutations_table()
+
+        Attributes
+        ----------
+        msa_length : int
+            length of the target sequence of the MSA
+        msa_depth : int
+            number of sequences in the MSA
+        n_states : int
+            number of states (21: 20 amino acids + 1 gap)
+        h : ndarray of shape (L, q), np.float32
+            DCA fields coefficients
+        J : SparseJ or ndarray, np.float32
+            DCA couplings coefficients (access with J[i, j] and J[i, j][a, b] but not J[i, j, a, b])
+        alignment : PairwiseAlignment
+            alignment between target chain(s) in PDB and target sequence in MSA
+        distance_matrix : ndarray of shape (L, L), np.float32
+            res-res distance matrix
+        contacts : ndarray of shape (L, L), bool
+            res-res contact matrix
+        rsa_array : ndarray of shape (L,), np.float32
+            array of RSA values for each residue / MSA position
+        plddt_array : ndarray of shape (L,), np.float32
+            array of pDLLT (or B-factor) values for each residue / MSA position
+        gap_ratios_array : ndarray of shape (L,), np.float32
+            array of gap ratios values for each MSA position
         """
 
         # Guardian, Logger and base properties
@@ -518,8 +555,22 @@ StructureDCA Properties:
         doc_str = cls.__init__.__doc__
 
         # Title
-        title = "StructureDCA: Structure-informed DCA model of an MSA."
+        title = "Structure-informed DCA model of a multiple sequence alignment (MSA)."
         doc_str = doc_str.replace(title, f"{Logger.OKGREEN}{Logger.BOLD}{title}{Logger.ENDC}")
+
+        # Inject arguments group titles
+        argument_group_titles = [
+            ("msa_path", "Input arguments"),
+            ("distance_cutoff", "StructureDCA arguments"),
+            ("ignore_hydrogen_atoms", "Structure arguments"),
+            ("num_threads", "Execution arguments"),
+            ("distance_cache_path", "Cache arguments"),
+            ("verbose", "Logging arguments"),
+        ]
+        for first_group_argument, group_title in argument_group_titles:
+            argument_in  = f"        {first_group_argument} :"
+            argument_out = f"{Logger.BOLD}{group_title}{Logger.ENDC}\n        {first_group_argument} :"
+            doc_str = doc_str.replace(argument_in, argument_out)
 
         # Color important arguments
         important_arguments_list = [
@@ -529,22 +580,21 @@ StructureDCA Properties:
             "num_threads", "verbose",
         ]
         for important_argument in important_arguments_list:
-            important_argument_in  = f"  {important_argument} "
-            important_argument_out = f"  {Logger.OKGREEN}{important_argument}{Logger.ENDC} "
+            important_argument_in  = f" {important_argument} : "
+            important_argument_out = f" {Logger.OKGREEN}{important_argument}{Logger.ENDC} : "
             doc_str = doc_str.replace(important_argument_in, important_argument_out)
 
         # Bold subtitles
         subtitles_list = [
-            "StructureDCA: Structure-Informed DCA model of an MSA.",
-            "usage (Python)",
-            "Input arguments", "StructureDCA arguments", "Structure arguments", "Execution arguments",
-            "Cache arguments", "Logging arguments",
-            "StructureDCA Properties",
+            "Parameters", "Examples", "Attributes"
         ]
         for subtitle in subtitles_list:
             subtitle_in  = f"{subtitle}"
             subtitle_out = f"{Logger.BOLD}{subtitle}{Logger.ENDC}"
             doc_str = doc_str.replace(subtitle_in, subtitle_out, 1)
+
+        # Process docstring
+        doc_str = doc_str.replace("        ", "") # remove docstring indentations
 
         # Log
         print(doc_str)
