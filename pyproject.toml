@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 # Pip Package Metadata ---------------------------------------------------------
 [project]
 name = "structuredca"
-version = "1.0.0"
+version = "1.0.1"
 description = "Structure-Informed Direct Couplings Analysis."
 readme = "README.md"
 authors = [
