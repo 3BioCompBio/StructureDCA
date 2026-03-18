@@ -611,14 +611,17 @@ void PlmDCA::update_position_gradient(
     const auto& coupling_list_right_i = this->coupling_list_right[i];
     const auto& ij_index_i = this->ij_index[i];
     const int Ai = A * i;
+    const int n_couplings_i = coupling_list_left_i.size() + coupling_list_right_i.size();
+    const auto t1 = std::chrono::high_resolution_clock::now();
+    
 
     // Compute position gradients and loss ---------------------------------------------------------
     
     // Init proba, gradients and loss for position i
-    std::vector<float> prob_ni(A, 0.0f);                       // Prabability for each a (at position i for sequence n)
-    std::vector<float> fields_gradient_i(A, 0.0f);             // Grad(h)
-    std::vector<float> couplings_gradient_i(L * A * A, 0.0f);  // Grad(J)
-    float loss_i = 0.0f;                                       // Loss for position i
+    std::vector<float> prob_ni(A, 0.0f); // Prabability for each a (at position i for sequence n)
+    std::vector<float> fields_gradient_i(A, 0.0f);
+    std::vector<float> couplings_gradient_i(n_couplings_i * A * A, 0.0f);
+    float loss_i = 0.0f;
     
     // Loop on sequences
     const auto w_i = this->pos_weights[i];
@@ -630,7 +633,7 @@ void PlmDCA::update_position_gradient(
         const auto w_ni = this->weights[n] * w_i;
 
         // Skip if seq[i] is gap and if exclude_gaps
-        if (this->exclude_gaps && a_ni == this->gap_state) continue;
+        if (exclude_gaps && a_ni == gap_state) continue;
         
         // Compute positional probabilities --------------------------------------------------------
 
@@ -643,17 +646,18 @@ void PlmDCA::update_position_gradient(
         }
 
         // Compute contribution from J
-        int k_j;
         for(int j : coupling_list_left_i){
-            if(this->exclude_gaps && current_seq[j] == this->gap_state) continue;
-            k_j = ij_index_i[j]+ A*current_seq[j];
+            const uint8_t seq_j = current_seq[j];
+            if(exclude_gaps && seq_j == gap_state) continue;
+            const int k_j = ij_index_i[j]+ A*seq_j;
             for(int a = 0; a < A_nogap; ++a){
                 prob_ni[a] += hJ[k_j + a];
             }
         }
         for(int j : coupling_list_right_i){
-            if(this->exclude_gaps && current_seq[j] == this->gap_state) continue;
-            k_j = ij_index_i[j] + current_seq[j];
+            const uint8_t seq_j = current_seq[j];
+            if(exclude_gaps && seq_j == gap_state) continue;
+            const int k_j = ij_index_i[j] + seq_j;
             for(int a = 0; a < A_nogap; ++a){
                 prob_ni[a] += hJ[k_j + A*a];
             }
@@ -685,21 +689,32 @@ void PlmDCA::update_position_gradient(
         }
         
         // Set Grad(J): Grad(J_nij(a, b)) = w*(P_ni(a) - delta(a=a_ni)) (summed over all sequences n)
+        int j_id = 0; // index counter for positions in the couplings_gradient_i array
         for(int j : coupling_list_left_i){
-            if(this->exclude_gaps && current_seq[j] == this->gap_state) continue;
-            k_j = A2*j + A*current_seq[j];
+            const uint8_t seq_j = current_seq[j];
+            if(exclude_gaps && seq_j == gap_state){
+                ++j_id;
+                continue;
+            }
+            const int k_j = A2*j_id + A*seq_j;
             couplings_gradient_i[k_j + a_ni] -= w_ni; // Case a = a_ni
             for(int a = 0; a < A_nogap; ++a){
                 couplings_gradient_i[k_j + a] += prob_ni[a]; // All cases
             }
+            ++j_id;
         }
         for(int j : coupling_list_right_i){
-            if(this->exclude_gaps && current_seq[j] == this->gap_state) continue;
-            k_j = A2*j + current_seq[j];
+            const uint8_t seq_j = current_seq[j];
+            if(exclude_gaps && seq_j == gap_state){
+                ++j_id;
+                continue;
+            }
+            const int k_j = A2*j_id + seq_j;
             couplings_gradient_i[k_j + A*a_ni] -= w_ni; // Case a = a_ni
             for(int a = 0; a < A_nogap; ++a){
                 couplings_gradient_i[k_j + A*a] += prob_ni[a]; // All cases
             }
+            ++j_id;
         }
     } // End loop on sequences
             
@@ -717,33 +732,39 @@ void PlmDCA::update_position_gradient(
         }
     
         // Aggregate Grad(J)
-        int k;
-        int k_2;
-        int k_plus_Aa;
-        int A2j;
+        int j_id = 0; // index counter for positions in the couplings_gradient_i array
         for(int j : coupling_list_left_i){
-            k = ij_index_i[j];
-            A2j = A2*j;
+            const int k = ij_index_i[j];
+            const int A2j = A2*j_id;
+            int Aa = 0;
             for(int a = 0; a < A; ++a){
-                k_2 = A2j + A*a;
-                k_plus_Aa = k + A*a;
+                const int k_2 = A2j + Aa;
+                const int k_plus_Aa = k + Aa;
                 for(int b = 0; b < A; ++b){
                     grad[k_plus_Aa + b] += couplings_gradient_i[k_2 + b] * Neff_inv;
                 }
+                Aa += A;
             }
+            ++j_id;
         }
         for(int j : coupling_list_right_i){
-            k = ij_index_i[j];
-            A2j = A2*j;
+            const int k = ij_index_i[j];
+            const int A2j = A2*j_id;
+            int Aa = 0;
             for(int a = 0; a < A; ++a){
-                k_2 = A2j + A*a;
-                k_plus_Aa = k + A*a;
+                const int k_2 = A2j + Aa;
+                const int k_plus_Aa = k + Aa;
                 for(int b = 0; b < A; ++b){
                     grad[k_plus_Aa + b] += couplings_gradient_i[k_2 + b] * Neff_inv;
                 }
+                Aa += A;
             }
+            ++j_id;
         }
     }
+    const auto t2 = std::chrono::high_resolution_clock::now();
+    float dt = std::chrono::duration<float>(t2 - t1).count();
+    std::cout << n_couplings_i << " " << dt << std::endl;
 }
 
 
