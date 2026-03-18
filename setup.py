@@ -11,18 +11,9 @@ from setuptools import setup, Extension
 
 # Extensions -------------------------------------------------------------------
 
-# Detect compiler platform to manage OpenMP compilation
+# Define extension (C++ code that need to be compiled)
 compile_args = ['-std=c++17', '-O3']
 link_args = ['-O3']
-if os.name == 'nt':
-    # Windows (MSVC)
-    compile_args.append('/openmp')
-else:
-    # Linux/macOS (GCC/Clang)
-    compile_args.append('-fopenmp')
-    link_args.append('-fopenmp')
-
-# Define extension (C++ code that need to be compiled)
 plmdca_ext = Extension(
     name='structuredca.dca_model.dca_solvers.plmdca.lib_plmdcaBackend',
     sources=[ # .cpp files

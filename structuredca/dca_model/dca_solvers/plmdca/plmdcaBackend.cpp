@@ -218,17 +218,6 @@ extern "C" float* plmdcaBackend(
     const char* neff_tmp_path
 )
 {  
-    
-    // Guardian: Impossible multi-thread error
-    #if defined(_OPENMP)
-        // can use multiple threads
-    #else 
-        if(num_threads > 1){
-            std::cerr << "ERROR in StructureDCA(): DCASolver.PlmDCA C++ backend.\n";
-            std::cerr << "Cannot set multiple threads when OpenMP is not supported.\n";
-            throw std::runtime_error("Invalid number of threads");
-        }
-    #endif
 
     // Init h and J Optimized
     ObjectiveFunction objective_function(

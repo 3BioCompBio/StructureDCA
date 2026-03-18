@@ -5,9 +5,6 @@ project(plmdcaBackend)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Check for OpenMP support
-find_package(OpenMP)
-
 # Include directories
 include_directories(include)
 include_directories(lbfgs/include)
@@ -21,13 +18,6 @@ set(SRC_FILES
 
 # Shared library output
 add_library(plmdcaBackend SHARED ${SRC_FILES})
-
-# Link OpenMP if found
-if(OpenMP_CXX_FOUND)
-  target_link_libraries(plmdcaBackend PRIVATE OpenMP::OpenMP_CXX)
-else()
-  message(WARNING "OpenMP not found, proceeding without OpenMP support")
-endif()
 
 # Change output name to _plmdcaBackend.so
 set_target_properties(plmdcaBackend PROPERTIES

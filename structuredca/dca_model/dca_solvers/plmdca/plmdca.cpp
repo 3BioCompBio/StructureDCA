@@ -1,8 +1,5 @@
 
 // Header ----------------------------------------------------------------------
-#if defined(_OPENMP)
-    #include <omp.h>
-#endif
 #include "include/plmdca.h"
 
 /*
@@ -516,11 +513,16 @@ void PlmDCA::initCoefficients(float* hJ)
 float PlmDCA::gradient(const float* hJ, float* grad)
 {
     /*Computes the gradient of the negative psuedolikelihood from alignment data and L2-regularization
+        - This is a monster, I know.
+        - Sparse DCA and sparse coefficents all around does not helps.
+        - I tried to keep it computationally efficient, which also does not helps.
+        - Multi-threading without OpenMP does not helps too.
+        - good luck
     Parameters
-        hJ      : Array of fields and couplings
-        grad    : Array of gradients 
+        hJ      : Array of fields and couplings (will stay constant)
+        grad    : Array of gradients (to update)
     Returns
-        loss    : Value of objective function
+        loss    : Value of objective function (float)
     */
    
     // Init ----------------------------------------------------------------------------------------
@@ -554,110 +556,158 @@ float PlmDCA::gradient(const float* hJ, float* grad)
 
     // Gradients of log-pseudolikelihood from alignment data ---------------------------------------
     
-    // Loop on positions
-    #pragma omp parallel for num_threads(this->num_threads)
-    for(int i = 0; i < L; ++i){
+    // Init multi-threading
+    std::mutex mtx; // to lock global gradient when a thread updates it
+    const int n_threads = this->num_threads;
+    const int chunk_size = (L + n_threads - 1) / n_threads;
+    std::vector<std::thread> threads;
+    for (int t = 0; t < n_threads; ++t) {
 
-        // Init local variables for position i
-        const auto& coupling_list_left_i = this->coupling_list_left[i];
-        const auto& coupling_list_right_i = this->coupling_list_right[i];
-        const auto& ij_index_i = this->ij_index[i];
-        const int Ai = A * i;
+        // Thread properties
+        int start = t * chunk_size;
+        int end   = std::min(start + chunk_size, L);
+        threads.emplace_back([&, start, end]() { // wtf
 
-        // Compute position gradients and loss -----------------------------------------------------
+            // Loop on positions
+            for (int i = start; i < end; ++i) {
+                update_position_gradient(i, hJ, grad, loss, mtx);
+            }
+
+        });
+    } // End: Loop on threads
+
+    // Join all threads (ensures all threads finish before returning)
+    for (auto& th : threads) {
+        th.join();
+    }
+
+    // Set timer
+    const auto t2 = std::chrono::high_resolution_clock::now();
+    this->dt += std::chrono::duration<float>(t2 - t1).count();
+
+    return loss;
+}
+
+void PlmDCA::update_position_gradient(
+    const int i,
+    const float* hJ,
+    float* grad,
+    float& loss,
+    std::mutex& mtx
+){
+    /*For a given position i, computed the loss, h-gradient and J-gradient, then updated the global loss and gradient.
+        This function is meant to be multi-threaded.
+    Parameters
+        i       : target position
+        hJ      : array of fields and couplings (will stay constant, global)
+        grad    : array of gradients (to update, global)
+        loss    : loss function (to update, global)
+        mtx     : object to lock global gradient when this thread will update it
+    */
+    
+    // Init local variables for position i
+    const auto L = this->msa_length;
+    const auto& coupling_list_left_i = this->coupling_list_left[i];
+    const auto& coupling_list_right_i = this->coupling_list_right[i];
+    const auto& ij_index_i = this->ij_index[i];
+    const int Ai = A * i;
+
+    // Compute position gradients and loss ---------------------------------------------------------
+    
+    // Init proba, gradients and loss for position i
+    std::vector<float> prob_ni(A, 0.0f);                       // Prabability for each a (at position i for sequence n)
+    std::vector<float> fields_gradient_i(A, 0.0f);             // Grad(h)
+    std::vector<float> couplings_gradient_i(L * A * A, 0.0f);  // Grad(J)
+    float loss_i = 0.0f;                                       // Loss for position i
+    
+    // Loop on sequences
+    const auto w_i = this->pos_weights[i];
+    for(int n = 0; n < this->msa_depth; ++n){
+
+        // Init local variable for sequence n
+        const auto& current_seq = this->sequences[n];
+        const auto a_ni = current_seq[i];
+        const auto w_ni = this->weights[n] * w_i;
+
+        // Skip if seq[i] is gap and if exclude_gaps
+        if (this->exclude_gaps && a_ni == this->gap_state) continue;
         
-        // Init proba, gradients and loss for position i
-        std::vector<float> prob_ni(A, 0.0f);                       // Prabability for each a (at position i for sequence n)
-        std::vector<float> fields_gradient_i(A, 0.0f);             // Grad(h)
-        std::vector<float> couplings_gradient_i(L * A * A, 0.0f);  // Grad(J)
-        float loss_i = 0.0f;                                       // Loss for position i
+        // Compute positional probabilities --------------------------------------------------------
+
+        // Reinitialize probability vector to zero
+        std::fill(prob_ni.begin(), prob_ni.end(), 0.0f);
+
+        // Compute contribution from h
+        for (int a = 0; a < A_nogap; ++a) {
+            prob_ni[a] += hJ[Ai + a];
+        }
+
+        // Compute contribution from J
+        int k_j;
+        for(int j : coupling_list_left_i){
+            if(this->exclude_gaps && current_seq[j] == this->gap_state) continue;
+            k_j = ij_index_i[j]+ A*current_seq[j];
+            for(int a = 0; a < A_nogap; ++a){
+                prob_ni[a] += hJ[k_j + a];
+            }
+        }
+        for(int j : coupling_list_right_i){
+            if(this->exclude_gaps && current_seq[j] == this->gap_state) continue;
+            k_j = ij_index_i[j] + current_seq[j];
+            for(int a = 0; a < A_nogap; ++a){
+                prob_ni[a] += hJ[k_j + A*a];
+            }
+        }
+
+        // Convert to probability
+        for (int a = 0; a < A_nogap; ++a) {
+            prob_ni[a] = std::exp(prob_ni[a]);
+        }
+        const float sum_prob_ni = std::accumulate(prob_ni.begin(), prob_ni.end(), 0.0f);
+        for (int a = 0; a < A_nogap; ++a) {
+            prob_ni[a] /= sum_prob_ni;
+        }
+
+        // Update position gradients and loss for this sequence ------------------------------------
         
-        // Loop on sequences
-        const auto w_i = this->pos_weights[i];
-        for(int n = 0; n < this->msa_depth; ++n){
+        // Accumulate log(P) in objective function for current a_ni of seq n
+        loss_i -= w_ni * std::log(prob_ni[a_ni]);
 
-            // Init local variable for sequence n
-            const auto& current_seq = this->sequences[n];
-            const auto a_ni = current_seq[i];
-            const auto w_ni = this->weights[n] * w_i;
+        // Weight probability
+        for(int a = 0; a < A_nogap; ++a){
+            prob_ni[a] = w_ni * prob_ni[a];
+        }
 
-            // Skip if seq[i] is gap and if exclude_gaps
-            if (this->exclude_gaps && a_ni == this->gap_state) continue;
-            
-            // Compute positional probabilities ----------------------------------------------------
-
-            // Reinitialize probability vector to zero
-            std::fill(prob_ni.begin(), prob_ni.end(), 0.0f);
-
-            // Compute contribution from h
-            for (int a = 0; a < A_nogap; ++a) {
-                prob_ni[a] += hJ[Ai + a];
-            }
-
-            // Compute contribution from J
-            int k_j;
-            for(int j : coupling_list_left_i){
-                if(this->exclude_gaps && current_seq[j] == this->gap_state) continue;
-                k_j = ij_index_i[j]+ A*current_seq[j];
-                for(int a = 0; a < A_nogap; ++a){
-                    prob_ni[a] += hJ[k_j + a];
-                }
-            }
-            for(int j : coupling_list_right_i){
-                if(this->exclude_gaps && current_seq[j] == this->gap_state) continue;
-                k_j = ij_index_i[j] + current_seq[j];
-                for(int a = 0; a < A_nogap; ++a){
-                    prob_ni[a] += hJ[k_j + A*a];
-                }
-            }
-
-            // Convert to probability
-            for (int a = 0; a < A_nogap; ++a) {
-                prob_ni[a] = std::exp(prob_ni[a]);
-            }
-            const float sum_prob_ni = std::accumulate(prob_ni.begin(), prob_ni.end(), 0.0f);
-            for (int a = 0; a < A_nogap; ++a) {
-                prob_ni[a] /= sum_prob_ni;
-            }
-
-            // Update position gradients and loss for this sequence --------------------------------
-            
-            // Accumulate log(P) in objective function for current a_ni of seq n
-            loss_i -= w_ni * std::log(prob_ni[a_ni]);
-
-            // Weight probability
+        // Set Grad(h): Grad(h_ni(a)) = w_n*w_i*(P_ni(a) - delta(a=a_ni)) (summed over all sequences n)
+        fields_gradient_i[a_ni] -= w_ni;
+        for(int a = 0; a < A_nogap; ++a){
+            fields_gradient_i[a] += prob_ni[a];
+        }
+        
+        // Set Grad(J): Grad(J_nij(a, b)) = w*(P_ni(a) - delta(a=a_ni)) (summed over all sequences n)
+        for(int j : coupling_list_left_i){
+            if(this->exclude_gaps && current_seq[j] == this->gap_state) continue;
+            k_j = A2*j + A*current_seq[j];
+            couplings_gradient_i[k_j + a_ni] -= w_ni; // Case a = a_ni
             for(int a = 0; a < A_nogap; ++a){
-                prob_ni[a] = w_ni * prob_ni[a];
+                couplings_gradient_i[k_j + a] += prob_ni[a]; // All cases
             }
-
-            // Set Grad(h): Grad(h_ni(a)) = w_n*w_i*(P_ni(a) - delta(a=a_ni)) (summed over all sequences n)
-            fields_gradient_i[a_ni] -= w_ni;
+        }
+        for(int j : coupling_list_right_i){
+            if(this->exclude_gaps && current_seq[j] == this->gap_state) continue;
+            k_j = A2*j + current_seq[j];
+            couplings_gradient_i[k_j + A*a_ni] -= w_ni; // Case a = a_ni
             for(int a = 0; a < A_nogap; ++a){
-                fields_gradient_i[a] += prob_ni[a];
+                couplings_gradient_i[k_j + A*a] += prob_ni[a]; // All cases
             }
+        }
+    } // End loop on sequences
             
-            // Set Grad(J): Grad(J_nij(a, b)) = w*(P_ni(a) - delta(a=a_ni)) (summed over all sequences n)
-            for(int j : coupling_list_left_i){
-                if(this->exclude_gaps && current_seq[j] == this->gap_state) continue;
-                k_j = A2*j + A*current_seq[j];
-                couplings_gradient_i[k_j + a_ni] -= w_ni; // Case a = a_ni
-                for(int a = 0; a < A_nogap; ++a){
-                    couplings_gradient_i[k_j + a] += prob_ni[a]; // All cases
-                }
-            }
-            for(int j : coupling_list_right_i){
-                if(this->exclude_gaps && current_seq[j] == this->gap_state) continue;
-                k_j = A2*j + current_seq[j];
-                couplings_gradient_i[k_j + A*a_ni] -= w_ni; // Case a = a_ni
-                for(int a = 0; a < A_nogap; ++a){
-                    couplings_gradient_i[k_j + A*a] += prob_ni[a]; // All cases
-                }
-            }
-        } // End loop on sequences
-                
-        // Update global loss and gradient ---------------------------------------------------------
-        #pragma omp critical
-        {
+    // Update global loss and gradient -------------------------------------------------------------
+    {
+        // Lock to allow global update
+        std::lock_guard<std::mutex> lock(mtx);
+        
         // Aggregate object function
         loss += loss_i * Neff_inv;
     
@@ -693,14 +743,7 @@ float PlmDCA::gradient(const float* hJ, float* grad)
                 }
             }
         }
-        } // End: Aggregation of gradiens and objective function
-    } // End: Loop on positions
-
-    // Set timer
-    const auto t2 = std::chrono::high_resolution_clock::now();
-    this->dt += std::chrono::duration<float>(t2 - t1).count();
-
-    return loss;
+    }
 }
 
 

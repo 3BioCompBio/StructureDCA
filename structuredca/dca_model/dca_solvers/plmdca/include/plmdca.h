@@ -17,7 +17,8 @@
     #include <numeric>
     #include <cstdint>  // For uint8_t
     #include <thread>   // Standard C++ multi-threading
-    #include <chrono>  // To time code execution
+    #include <mutex>    // Lock globals for multi-threading
+    #include <chrono>   // To time code execution
     #include "../lbfgs/include/lbfgs.h"
 
     // Main: PlmDCA ------------------------------------------------------------
@@ -70,6 +71,13 @@
         float gradient(
             const float* hJ,
             float* grad
+        );
+        void update_position_gradient(
+            const int i,
+            const float* hJ,
+            float* grad,
+            float& loss,
+            std::mutex& mtx
         );
 
         // Utility

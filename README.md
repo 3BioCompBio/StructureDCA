@@ -105,26 +105,7 @@ Compute RSA from the biologically relevant conformation, include inter-chain con
 ### Requirements
 - Python 3.9 or later
 - Python packages `numpy` and `biopython` (version 1.75 or later)
-- A C++ compiler that supports C++17 and OpenMP (such as GCC, LLVM or MSVC).
-
-### Troubleshooting macOS build errors
-StructureDCA uses OpenMP for parallel computation in C++.
-Since macOS `Clang` compiler does not include OpenMP support by default, macOS users may need to install and configure the `LLVM` compiler to build the package.
-
-If you are using macOS and encounter compilation errors related to `-fopenmp`, please follow these steps:
-
-- Install `Homebrew`
-- Install `LLVM` and `OpenMP` runtime and configure Python to use this compiler. Then try to re-install StructureDCA. Run something like (paths may slightly differ):
-```bash
-brew install llvm libomp
-export CC=/usr/local/opt/llvm/bin/clang
-export CXX=/usr/local/opt/llvm/bin/clang++
-export CPPFLAGS="-I/usr/local/opt/libomp/include"
-export LDFLAGS="-L/usr/local/opt/libomp/lib -lomp"
-pip install structuredca
-```
-
-Well, I am not exactly sure about this fix, but I know it is possible.
+- A C++ compiler that supports C++17 (such as GCC, LLVM or MSVC).
 
 ## Credits
 - For inferring the DCA coefficients, StructureDCA uses a gradient descent solver: [L-BFGS](https://github.com/chokkan/liblbfgs "libLBFGS") by Naoaki Okazaki (which is included in this repo).
