@@ -79,6 +79,7 @@
             float& loss,
             std::mutex& mtx
         );
+        std::vector<std::vector<int>> assign_positions_to_threads();
 
         // Utility
         void logCouplingMatrix();

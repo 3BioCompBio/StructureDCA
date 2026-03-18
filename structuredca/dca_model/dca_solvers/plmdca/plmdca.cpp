@@ -559,22 +559,15 @@ float PlmDCA::gradient(const float* hJ, float* grad)
     // Init multi-threading
     std::mutex mtx; // to lock global gradient when a thread updates it
     const int n_threads = this->num_threads;
-    const int chunk_size = (L + n_threads - 1) / n_threads;
+    std::vector<std::vector<int>> thread_positions = assign_positions_to_threads();
     std::vector<std::thread> threads;
     for (int t = 0; t < n_threads; ++t) {
-
-        // Thread properties
-        int start = t * chunk_size;
-        int end   = std::min(start + chunk_size, L);
-        threads.emplace_back([&, start, end]() { // wtf
-
-            // Loop on positions
-            for (int i = start; i < end; ++i) {
+        threads.emplace_back([&, t]() {
+            for (int i : thread_positions[t]) {
                 update_position_gradient(i, hJ, grad, loss, mtx);
             }
-
         });
-    } // End: Loop on threads
+    }
 
     // Join all threads (ensures all threads finish before returning)
     for (auto& th : threads) {
@@ -760,6 +753,32 @@ void PlmDCA::update_position_gradient(
             ++j_id;
         }
     }
+}
+
+std::vector<std::vector<int>> PlmDCA::assign_positions_to_threads(){
+    /*
+    Assign a list of positions for each thread (using greedy algorithm).
+        Based on the estimated time cost from the number of couplings of the position
+        Returns a list : thread -> list of its assigned position
+    */
+    
+    // Estimate positional time complexity (based on the number of couplings)
+    const auto L = this->msa_length;
+    const int n_threads = this->num_threads;
+    std::vector<int> positional_cost(L, 0);
+    for(int i = 0; i < L; ++i){
+        positional_cost[i] = 2 + this->coupling_list[i].size();
+    }
+
+    // Compute thread_positions
+    std::vector<std::vector<int>> thread_positions(n_threads);
+    std::vector<int> thread_load(n_threads, 0);
+    for (int i = 0; i < L; ++i) {
+        int t_min = std::min_element(thread_load.begin(), thread_load.end()) - thread_load.begin();
+        thread_positions[t_min].push_back(i);
+        thread_load[t_min] += positional_cost[i];
+    }
+    return thread_positions;
 }
 
 
