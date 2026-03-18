@@ -127,6 +127,9 @@ gap_state(static_cast<uint8_t>(m_n_states - 1))        // gap as an integer valu
         std::cout << "    - lambda_J: " << this->lambda_J << " -> " << this->lambda_J_corrected  << std::endl;
     }
 
+    // Assign positions to threads
+    this->thread_positions = assign_positions_to_threads();
+
     // Logs
     //this->logCouplingMatrix();
     //this->logCouplingList();
@@ -559,11 +562,10 @@ float PlmDCA::gradient(const float* hJ, float* grad)
     // Init multi-threading
     std::mutex mtx; // to lock global gradient when a thread updates it
     const int n_threads = this->num_threads;
-    std::vector<std::vector<int>> thread_positions = assign_positions_to_threads();
     std::vector<std::thread> threads;
     for (int t = 0; t < n_threads; ++t) {
         threads.emplace_back([&, t]() {
-            for (int i : thread_positions[t]) {
+            for (int i : this->thread_positions[t]) {
                 update_position_gradient(i, hJ, grad, loss, mtx);
             }
         });

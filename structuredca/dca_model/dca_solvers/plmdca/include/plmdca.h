@@ -132,6 +132,7 @@
         std::vector<std::vector<float>> frequencies;
         std::vector<std::vector<float>> h_star;
         std::vector<std::vector<int>> ij_index;
+        std::vector<std::vector<int>> thread_positions;
 
     };
 
