@@ -599,7 +599,6 @@ void PlmDCA::update_position_gradient(
     */
     
     // Init local variables for position i
-    const auto L = this->msa_length;
     const auto& coupling_list_left_i = this->coupling_list_left[i];
     const auto& coupling_list_right_i = this->coupling_list_right[i];
     const auto& ij_index_i = this->ij_index[i];
