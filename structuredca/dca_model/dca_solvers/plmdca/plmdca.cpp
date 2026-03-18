@@ -555,7 +555,7 @@ float PlmDCA::gradient(const float* hJ, float* grad)
     }
 
     // Gradients of log-pseudolikelihood from alignment data ---------------------------------------
-    
+
     // Init multi-threading
     std::mutex mtx; // to lock global gradient when a thread updates it
     const int n_threads = this->num_threads;
@@ -611,9 +611,7 @@ void PlmDCA::update_position_gradient(
     const auto& coupling_list_right_i = this->coupling_list_right[i];
     const auto& ij_index_i = this->ij_index[i];
     const int Ai = A * i;
-    const int n_couplings_i = coupling_list_left_i.size() + coupling_list_right_i.size();
-    const auto t1 = std::chrono::high_resolution_clock::now();
-    
+    const int n_couplings_i = coupling_list_left_i.size() + coupling_list_right_i.size();    
 
     // Compute position gradients and loss ---------------------------------------------------------
     
@@ -762,9 +760,6 @@ void PlmDCA::update_position_gradient(
             ++j_id;
         }
     }
-    const auto t2 = std::chrono::high_resolution_clock::now();
-    float dt = std::chrono::duration<float>(t2 - t1).count();
-    std::cout << n_couplings_i << " " << dt << std::endl;
 }
 
 
