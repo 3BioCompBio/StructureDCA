@@ -39,7 +39,8 @@ class PairwiseAlignment:
             open_gap_score: float=-2.5,
             extend_gap_score: float=-2.0,
             tail_gap_score: float=-2.0,
-            query_insertion_multiplier: float=3.0,
+            query_insertion_multiplier: float=1.0,
+            target_insertion_multiplier: float=1.0,
         ):
 
         # Length Guardians
@@ -64,8 +65,8 @@ class PairwiseAlignment:
         self.aligner.mismatch_score = mismatch_score
         # just because biopython decies to change its interface syntax each week ...
         if PairwiseAlignment.version_is_greater_than(Bio.__version__, "1.85"):
-            self.aligner.open_internal_insertion_score = open_gap_score
-            self.aligner.extend_internal_insertion_score = extend_gap_score
+            self.aligner.open_internal_insertion_score = open_gap_score * target_insertion_multiplier
+            self.aligner.extend_internal_insertion_score = extend_gap_score * target_insertion_multiplier
             self.aligner.open_right_insertion_score = tail_gap_score
             self.aligner.extend_right_insertion_score = tail_gap_score
             self.aligner.open_left_insertion_score = tail_gap_score
@@ -77,8 +78,8 @@ class PairwiseAlignment:
             self.aligner.open_right_deletion_score = tail_gap_score
             self.aligner.extend_right_deletion_score = tail_gap_score
         else:
-            self.aligner.target_internal_open_gap_score = open_gap_score
-            self.aligner.target_internal_extend_gap_score = extend_gap_score
+            self.aligner.target_internal_open_gap_score = open_gap_score * target_insertion_multiplier
+            self.aligner.target_internal_extend_gap_score = extend_gap_score * target_insertion_multiplier
             self.aligner.target_right_open_gap_score = tail_gap_score
             self.aligner.target_right_extend_gap_score = tail_gap_score
             self.aligner.target_left_open_gap_score = tail_gap_score

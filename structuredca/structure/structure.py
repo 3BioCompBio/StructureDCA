@@ -339,7 +339,7 @@ class Structure:
             target_sequences = Sequence(f"{self.name}_{target_chain}", "".join([res.amino_acid.one for res in target_residues]))
 
             # Align the two homomeric chains and get resid mapping
-            homomeric_chains_alignment = PairwiseAlignment(target_sequences, template_sequences, query_insertion_multiplier=1.0)
+            homomeric_chains_alignment = PairwiseAlignment(target_sequences, template_sequences)
             homomeric_residues_map = homomeric_chains_alignment.get_mapping(
                 ids1=[res.resid for res in target_residues],
                 ids2=[res.resid for res in template_residues],
