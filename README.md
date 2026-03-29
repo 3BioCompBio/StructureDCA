@@ -18,7 +18,7 @@ StructureDCA combines a flexible, user-friendly Python interface with the high c
 This model was initially developed to improve classical DCA methods for predicting the effects of missense mutations in proteins. However, StructureDCA can be applied to any DCA-based analysis (except for contact predictions...) and provides the full functionality of both standard and sparse DCA models.
 
 **Please cite**:
-- [Matsvei Tsishyn, Hugo Talibart, Marianne Rooman, Fabrizio Pucci. Structure-informed direct coupling analysis improves protein mutational landscape predictions. BioRxiv](https://www.biorxiv.org/).
+- [Matsvei Tsishyn, Hugo Talibart, Marianne Rooman, Fabrizio Pucci. Structure-informed direct coupling analysis improves protein mutational landscape predictions. BioRxiv](https://www.biorxiv.org/content/10.64898/2026.03.27.714804v1).
 
 
 ## Installation and Usage
