@@ -67,29 +67,29 @@ class PairwiseAlignment:
         if PairwiseAlignment.version_is_greater_than(Bio.__version__, "1.85"):
             self.aligner.open_internal_insertion_score = open_gap_score * target_insertion_multiplier
             self.aligner.extend_internal_insertion_score = extend_gap_score * target_insertion_multiplier
-            self.aligner.open_right_insertion_score = tail_gap_score
-            self.aligner.extend_right_insertion_score = tail_gap_score
-            self.aligner.open_left_insertion_score = tail_gap_score
-            self.aligner.extend_left_insertion_score = tail_gap_score
+            self.aligner.open_right_insertion_score = tail_gap_score * target_insertion_multiplier
+            self.aligner.extend_right_insertion_score = tail_gap_score * target_insertion_multiplier
+            self.aligner.open_left_insertion_score = tail_gap_score * target_insertion_multiplier
+            self.aligner.extend_left_insertion_score = tail_gap_score * target_insertion_multiplier
             self.aligner.open_internal_deletion_score = open_gap_score * query_insertion_multiplier
             self.aligner.extend_internal_deletion_score = extend_gap_score * query_insertion_multiplier
-            self.aligner.open_left_deletion_score = tail_gap_score
-            self.aligner.extend_left_deletion_score = tail_gap_score
-            self.aligner.open_right_deletion_score = tail_gap_score
-            self.aligner.extend_right_deletion_score = tail_gap_score
+            self.aligner.open_left_deletion_score = tail_gap_score * query_insertion_multiplier
+            self.aligner.extend_left_deletion_score = tail_gap_score * query_insertion_multiplier
+            self.aligner.open_right_deletion_score = tail_gap_score * query_insertion_multiplier
+            self.aligner.extend_right_deletion_score = tail_gap_score * query_insertion_multiplier
         else:
             self.aligner.target_internal_open_gap_score = open_gap_score * target_insertion_multiplier
             self.aligner.target_internal_extend_gap_score = extend_gap_score * target_insertion_multiplier
-            self.aligner.target_right_open_gap_score = tail_gap_score
-            self.aligner.target_right_extend_gap_score = tail_gap_score
-            self.aligner.target_left_open_gap_score = tail_gap_score
-            self.aligner.target_left_extend_gap_score = tail_gap_score
+            self.aligner.target_right_open_gap_score = tail_gap_score * target_insertion_multiplier
+            self.aligner.target_right_extend_gap_score = tail_gap_score * target_insertion_multiplier
+            self.aligner.target_left_open_gap_score = tail_gap_score * target_insertion_multiplier
+            self.aligner.target_left_extend_gap_score = tail_gap_score * target_insertion_multiplier
             self.aligner.query_internal_open_gap_score = open_gap_score * query_insertion_multiplier
             self.aligner.query_internal_extend_gap_score = extend_gap_score * query_insertion_multiplier
-            self.aligner.query_left_open_gap_score = tail_gap_score
-            self.aligner.query_left_extend_gap_score = tail_gap_score
-            self.aligner.query_right_open_gap_score = tail_gap_score
-            self.aligner.query_right_extend_gap_score = tail_gap_score
+            self.aligner.query_left_open_gap_score = tail_gap_score * query_insertion_multiplier
+            self.aligner.query_left_extend_gap_score = tail_gap_score * query_insertion_multiplier
+            self.aligner.query_right_open_gap_score = tail_gap_score * query_insertion_multiplier
+            self.aligner.query_right_extend_gap_score = tail_gap_score * query_insertion_multiplier
 
         # Align
         alignments = self.aligner.align(self.sequence1.sequence, self.sequence2.sequence)
