@@ -1,6 +1,6 @@
 
 # Imports ----------------------------------------------------------------------
-from typing import Any
+from typing import Any, List
 
 # Base functions ---------------------------------------------------------------
 def is_convertable_to(input_object: Any, input_type: type) -> bool:
@@ -11,6 +11,27 @@ def is_convertable_to(input_object: Any, input_type: type) -> bool:
     except:
         return False
     
+def remove_extension(input_path: str, possible_extensions: List[str]) -> str:
+    """
+    Remove extension (among `possible_extensions`) from a string `input_path`.
+        Ex: remove_extension('./my_dir/my_file.fasta.gz', ['fasta', 'fasta.gz']) -> './my_dir/my_file'
+    """
+
+    # Sort extensions list
+    # -> so try removing '.fasta.gz' before removing '.fasta'
+    possible_extensions_copy = [ext for ext in possible_extensions]
+    possible_extensions_copy.sort(key=lambda ext: len(ext), reverse=True)
+
+    # Remove extension and return
+    input_path = str(input_path) # copy to no mutate initial input_path
+    for ext in possible_extensions_copy:
+        if input_path.endswith(f".{ext}"):
+            return input_path.removesuffix(f".{ext}")
+
+    # Fallback: no extension to remove
+    return input_path
+
+# Format functions -------------------------------------------------------------
 def format_str(input_value: Any, round_digit: int=3, max_length: int=30) -> str:
     """Format a python object to a uniformized string format."""
     if isinstance(input_value, float):

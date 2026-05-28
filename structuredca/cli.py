@@ -6,6 +6,7 @@ from structuredca import StructureDCA
 
 from structuredca.sequence.fasta_reader import FastaStream
 from structuredca.sequence.mutation import read_mutations_file
+from structuredca.utils import remove_extension
 
 # CLI: dependencies ------------------------------------------------------------
 class CustomHelpFormatter(argparse.ArgumentDefaultsHelpFormatter,
@@ -170,10 +171,7 @@ def main():
     if args.output_path is None:
         output_dir = "./"
         msa_name:str = os.path.basename(args.msa_path)
-        for extension in FastaStream.ACCEPTED_MSA_EXTENSIONS:
-            if msa_name.endswith(f".{extension}"):
-                msa_name = msa_name.removesuffix(f".{extension}")
-                break
+        msa_name = remove_extension(msa_name, FastaStream.ACCEPTED_MSA_EXTENSIONS)
         args.output_path = os.path.join(output_dir, f"{msa_name}_structuredca.csv")
 
     # Verify output_path

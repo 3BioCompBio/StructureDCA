@@ -3,6 +3,7 @@ import os.path
 from typing import List, Union
 import gzip
 from structuredca.sequence import Sequence
+from structuredca.utils import remove_extension
 
 # FastaReader ------------------------------------------------------------------ 
 class FastaReader:
@@ -52,10 +53,7 @@ class FastaReader:
     def filename(cls, fasta_path: str) -> str:
         """Return filename (without file directory and without file extension) of fasta_path."""
         filename = os.path.basename(fasta_path)
-        for ext in FastaStream.ACCEPTED_MSA_EXTENSIONS:
-            if filename.endswith(f".{ext}"):
-                return filename.removesuffix(f".{ext}")
-        return filename
+        return remove_extension(filename, FastaStream.ACCEPTED_MSA_EXTENSIONS)
 
 # FastaStream ------------------------------------------------------------------
 class FastaStream:
