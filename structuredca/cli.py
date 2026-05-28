@@ -140,6 +140,12 @@ def main():
     parser.set_defaults(disable_warnings=False)
 
     parser.add_argument(
+        "-NC", "--disable_log_colors", dest="disable_log_colors", action="store_true",
+        help="disable use of colors in logs",
+    )
+    parser.set_defaults(disable_log_colors=False)
+
+    parser.add_argument(
         "--sep", type=str, default=",", metavar="<str>",
         help="separator in the output '.csv' file",
     )
@@ -218,8 +224,9 @@ def main():
             weights_cache_path=args.weights_cache_path,
             dca_cache_path=args.dca_cache_path,
             verbose=args.verbose,
-            disable_warnings=args.disable_warnings
-            )
+            disable_warnings=args.disable_warnings,
+            disable_log_colors=args.disable_log_colors,
+        )
 
 
     # Save scores

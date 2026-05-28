@@ -54,6 +54,7 @@ class StructureDCA:
             verbose: bool=True,
             log_gd_steps: bool=False,
             disable_warnings: bool=False,
+            disable_log_colors: bool=False,
         ):
         
         """Structure-informed DCA model of a multiple sequence alignment (MSA).
@@ -127,6 +128,8 @@ class StructureDCA:
             log gradient descent steps
         disable_warnings : bool, default=False
             disable warnings (use with caution)
+        disable_log_colors : bool, default=False
+            disable use of colors in logs
 
         Examples
         --------
@@ -164,6 +167,8 @@ class StructureDCA:
         # Guardian, Logger and base properties
         self.name = FastaReader.filename(msa_path)
         self.logger = Logger(verbose, disable_warnings, step_prefix="StructureDCA", warning_note=f" in {self}")
+        if disable_log_colors:
+            self.logger.use_colors = False
         self.log_gd_steps = log_gd_steps
         self.dca_cache_path = dca_cache_path
         self.use_contacts_plddt_filter = use_contacts_plddt_filter
@@ -438,7 +443,11 @@ class StructureDCA:
         # Log results
         if log_output_sample:
             round_digit_log = round_digit if round_digit is not None else 6
-            scores_csv.show(n_entries=n_output_sample_lines, max_col_length=20, round_digit=round_digit_log)
+            try: # to handle when 'scores_csv.show' has not property 'no_color'
+                no_color = not self.logger.use_colors
+                scores_csv.show(n_entries=n_output_sample_lines, max_col_length=20, round_digit=round_digit_log, no_color=no_color)
+            except:
+                scores_csv.show(n_entries=n_output_sample_lines, max_col_length=20, round_digit=round_digit_log)
 
         # Save
         if save_path is not None:
@@ -536,7 +545,11 @@ class StructureDCA:
         # Log results (positions)
         if log_output_sample:
             round_digit_log = round_digit if round_digit is not None else 6
-            scores_csv.show(n_entries=n_output_sample_lines, max_col_length=20, round_digit=round_digit_log)
+            try: # to handle when 'scores_csv.show' has not property 'no_color'
+                no_color = not self.logger.use_colors
+                scores_csv.show(n_entries=n_output_sample_lines, max_col_length=20, round_digit=round_digit_log, no_color=no_color)
+            except:
+                scores_csv.show(n_entries=n_output_sample_lines, max_col_length=20, round_digit=round_digit_log)
 
         # Save (positions)
         if save_path is not None:

@@ -18,6 +18,7 @@ class Logger:
             self,
             verbose: bool,
             disable_warnings: bool=False,
+            use_colors: bool=True,
             step_prefix: str="STEP",
             warning_prefix: str="WARNING",
             step_note: str="",
@@ -29,6 +30,7 @@ class Logger:
         """
         self.verbose = verbose
         self.disable_warnings = disable_warnings
+        self.use_colors = use_colors
         self._step_prefix = step_prefix
         self._warning_prefix = warning_prefix
         self._step_note = step_note
@@ -37,15 +39,24 @@ class Logger:
     # Methods ------------------------------------------------------------------
     @property
     def STEP_PREFIX(self) -> str:
-        return f"{self.OKGREEN}{self._step_prefix}{self.ENDC}{self._step_note}"
+        if self.use_colors:
+            return f"{self.OKGREEN}{self._step_prefix}{self.ENDC}{self._step_note}"
+        else:
+            return f"{self._step_prefix}{self._step_note}"
     
     @property
     def WARNING_PREFIX(self) -> str:
-        return f"{self.WARNING}{self._warning_prefix}{self.ENDC}{self._warning_note}"
+        if self.use_colors:
+            return f"{self.WARNING}{self._warning_prefix}{self.ENDC}{self._warning_note}"
+        else:
+            return f"{self._warning_prefix}{self._warning_note}"
     
     @property
     def CRITICAL_WARNING_PREFIX(self) -> str:
-        return f"{self.FAIL}{self._warning_prefix}{self.ENDC}{self._warning_note}"
+        if self.use_colors:
+            return f"{self.FAIL}{self._warning_prefix}{self.ENDC}{self._warning_note}"
+        else:
+            return f"{self._warning_prefix}{self._warning_note}"
 
     def log(self, log_str: str) -> None:
         if self.verbose:
