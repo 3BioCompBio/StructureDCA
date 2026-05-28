@@ -53,7 +53,7 @@ class StructureSequenceAlignment:
         if isinstance(logger, Logger):
             self.logger = logger
         else:
-            self.logger = Logger(verbose=logger)
+            self.logger = Logger(verbose=logger, disable_warnings=not logger)
         self.logger.step(f"Align structure (PDB, l={len(structure.target_residues)}) and sequence (MSA, l={len(sequence)}).")
 
         # Init base properties

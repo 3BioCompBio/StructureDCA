@@ -30,7 +30,7 @@ class Gauge:
         if isinstance(logger, Logger):
             self.logger = logger
         else:
-            self.logger = Logger(verbose=logger)
+            self.logger = Logger(verbose=logger, disable_warnings=not logger)
 
     # Base properties ----------------------------------------------------------
     @property

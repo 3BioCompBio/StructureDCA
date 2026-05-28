@@ -38,7 +38,7 @@ class MSA:
         if isinstance(logger, Logger):
             self.logger = logger
         else:
-            self.logger = Logger(verbose=logger)
+            self.logger = Logger(verbose=logger, disable_warnings=not logger)
 
         # Read sequences from file
         fasta_stream = FastaStream(self.msa_path) # Caution with this one

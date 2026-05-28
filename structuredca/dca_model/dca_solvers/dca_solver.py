@@ -39,7 +39,7 @@ class DCASolver(ABC):
         if isinstance(logger, Logger):
             self.logger = logger
         else:
-            self.logger = Logger(verbose=logger)
+            self.logger = Logger(verbose=logger, disable_warnings=not logger)
         self.log_gd_steps = log_gd_steps
 
         # Init arguments
