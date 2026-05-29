@@ -157,7 +157,7 @@ class PairwiseAlignment:
     def __str__(self) -> str:
         return f"PairwiseAlignment('{self.sequence1.name}' vs. '{self.sequence2.name}', l={len(self)}, ({self.match} |, {self.gap} -, {self.mismatch} x))"
     
-    def show(self, n_lines: int=120, only_critical_chunks: bool=False) -> "PairwiseAlignment":
+    def show(self, n_lines: int=120, only_critical_chunks: bool=False, use_colors: bool=True) -> "PairwiseAlignment":
         """Show the complete alignemnt."""
         assert n_lines > 0, f"ERROR in {self}.show(): n_lines={n_lines} should be > 0."
         print(self)
@@ -168,7 +168,7 @@ class PairwiseAlignment:
             ali1_line = self.align1[i:i+n_lines]
             comp_line = self.comparator[i:i+n_lines]
             ali2_line = self.align2[i:i+n_lines]
-            if only_critical_chunks:
+            if only_critical_chunks and use_colors:
                 comp_line = comp_line.replace(self.MISMATCH_CHAR, f"\033[91m{self.MISMATCH_CHAR}\033[0m")
                 ali2_line = ali2_line.replace(self.GAP_CHAR, f"\033[91m{self.GAP_CHAR}\033[0m")
             if not only_critical_chunks or self.MISMATCH_CHAR in comp_line or self.GAP_CHAR in ali2_line:

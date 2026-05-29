@@ -283,7 +283,7 @@ class StructureSequenceAlignment:
             critical_alignment_warning = True
             self.logger.warning(f"{self.align.internal_gap2} internal residues in the PDB do not correspond to a position in MSA.", critical=True)
         if critical_alignment_warning and not self.logger.disable_warnings:
-            self.align.show(n_lines=80, only_critical_chunks=True)
+            self.align.show(n_lines=80, only_critical_chunks=True, use_colors=self.logger.use_colors)
 
 
     # Methods ------------------------------------------------------------------
