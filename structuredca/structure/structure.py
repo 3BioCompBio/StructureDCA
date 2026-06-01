@@ -357,7 +357,7 @@ class Structure:
                 if target_residue.amino_acid.one != template_residue.amino_acid.one:
                     n_mismatch += 1
                     continue
-                target_residue.coords = np.concat([target_residue.coords, template_residue.coords])
+                target_residue.coords = np.concatenate([target_residue.coords, template_residue.coords])
                 n_assigned += 1
 
             # Log warnings
