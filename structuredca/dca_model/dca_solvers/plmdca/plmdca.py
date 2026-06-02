@@ -170,6 +170,7 @@ class PlmDCA(DCASolver):
         weights_cache_path_str = self.weights_cache_path if isinstance(self.weights_cache_path, str) else ""
 
         # Init PlmDCA link with C++ backend and compute coefficients h and J
+        solver_verbose = self.logger.verbose and not self.logger.disable_solver_logs
         hJ_ptr = self.__plmdcaBackend(
             self.N_STATES,
             self.msa_path.encode('utf-8'),
@@ -187,7 +188,7 @@ class PlmDCA(DCASolver):
             self.max_iterations,
             self.num_threads,
             weights_cache_path_str.encode('utf-8'),
-            self.logger.verbose,
+            solver_verbose,
             self.log_gd_steps,
             self.neff_tmp_path.encode('utf-8'),
         )

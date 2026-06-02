@@ -18,6 +18,7 @@ class Logger:
             self,
             verbose: bool,
             disable_warnings: bool=False,
+            disable_solver_logs: bool=False,
             use_colors: bool=True,
             step_prefix: str="STEP",
             warning_prefix: str="WARNING",
@@ -30,6 +31,7 @@ class Logger:
         """
         self.verbose = verbose
         self.disable_warnings = disable_warnings
+        self.disable_solver_logs = disable_solver_logs
         self.use_colors = use_colors
         self._step_prefix = step_prefix
         self._warning_prefix = warning_prefix

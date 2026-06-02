@@ -55,6 +55,7 @@ class StructureDCA:
             log_gd_steps: bool=False,
             disable_warnings: bool=False,
             disable_log_colors: bool=False,
+            disable_solver_logs: bool=False,
         ):
         
         """Structure-informed DCA model of a multiple sequence alignment (MSA).
@@ -130,6 +131,8 @@ class StructureDCA:
             disable warnings (use with caution)
         disable_log_colors : bool, default=False
             disable use of colors in logs
+        disable_solver_logs : bool, default=False
+            disable logs of the C++ DCA-solver (plmDCA by default)
 
         Examples
         --------
@@ -166,7 +169,13 @@ class StructureDCA:
 
         # Guardian, Logger and base properties
         self.name = FastaReader.filename(msa_path)
-        self.logger = Logger(verbose, disable_warnings, step_prefix="StructureDCA", warning_note=f" in {self}")
+        self.logger = Logger(
+            verbose,
+            disable_warnings=disable_warnings,
+            disable_solver_logs=disable_solver_logs,
+            step_prefix="StructureDCA",
+            warning_note=f" in {self}",
+        )
         if disable_log_colors:
             self.logger.use_colors = False
         self.log_gd_steps = log_gd_steps
