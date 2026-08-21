@@ -3,8 +3,6 @@
 import os.path
 import argparse
 from structuredca import StructureDCA
-
-from structuredca.sequence.fasta_reader import FastaStream
 from structuredca.sequence.mutation import read_mutations_file
 from structuredca.utils import remove_extension
 
@@ -51,12 +49,12 @@ def main():
 
     parser.add_argument(
         "msa_path", type=str,
-        help=f"path to MSA file ({', '.join(FastaStream.ACCEPTED_MSA_EXTENSIONS)})",
+        help="path to MSA file ('.fasta', '.a2m' or '.a3m', optionally gzipped)",
     )
 
     parser.add_argument(
         "pdb_path", type=str,
-        help="path to PDB '.pdb' file",
+        help="path to 3D structure file ('.pdb', '.ent' or '.cif', optionally gzipped)",
     )
 
     parser.add_argument(
@@ -177,7 +175,7 @@ def main():
     if args.output_path is None:
         output_dir = "./"
         msa_name:str = os.path.basename(args.msa_path)
-        msa_name = remove_extension(msa_name, FastaStream.ACCEPTED_MSA_EXTENSIONS)
+        msa_name = remove_extension(msa_name, StructureDCA.ACCEPTED_MSA_EXTENSIONS)
         args.output_path = os.path.join(output_dir, f"{msa_name}_structuredca.csv")
 
     # Verify output_path

@@ -7,8 +7,8 @@ import numpy as np
 from numpy.typing import NDArray
 from littlecsv import CSV
 from structuredca.utils import Logger, format_str
-from structuredca.sequence import Sequence, FastaReader, PairwiseAlignment, AminoAcid
-from structuredca.structure import Structure
+from structuredca.sequence import Sequence, FastaReader, FastaStream, PairwiseAlignment, AminoAcid
+from structuredca.structure import Structure, StructureReader
 from structuredca.aligner import StructureSequenceAlignment
 from structuredca.dca_model import DCAModel
 from structuredca.dca_model.dca_solvers import DCASolver
@@ -18,6 +18,11 @@ from structuredca.dca_model.data_structures import SparseJ
 # Main -------------------------------------------------------------------------
 class StructureDCA:
     """StructureDCA: Structure-informed DCA model of an MSA."""
+
+
+    # Constants ----------------------------------------------------------------
+    ACCEPTED_MSA_EXTENSIONS = FastaStream.ACCEPTED_MSA_EXTENSIONS
+    ACCEPTED_STRUCTURE_EXTENTIONS = StructureReader.ACCEPTED_EXTENTIONS
 
 
     # Constructors -------------------------------------------------------------
@@ -63,9 +68,9 @@ class StructureDCA:
         Parameters
         ----------
         msa_path : str
-            path to MSA file ('.fasta', '.a2m', '.a3m', optionally gzipped)
+            path to MSA file ('.fasta', '.a2m' or '.a3m', optionally gzipped)
         pdb_path : str or None
-            path to PDB file ('.pdb')
+            path to 3D structure file ('.pdb', '.ent' or '.cif', optionally gzipped)
         chains : str, default="A"
             target chain(s) in the PDB corresponding to the target sequence of the MSA
         homomeric_chains : str or None, optional

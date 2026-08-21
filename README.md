@@ -58,8 +58,9 @@ StructureDCA.help()
 
 # Initialize StructureDCA model
 sdca = StructureDCA(
-    msa_path='./6acv_A_29-94.fasta',
-    pdb_path='./6acv_A_29-94.pdb', chains='A',
+    msa_path='./6acv_A_29-94.fasta', # in .fasta, .a2m or .a3m format
+    pdb_path='./6acv_A_29-94.pdb', # in .pdb, .ent or .cif format
+    chains='A',
     use_contacts_plddt_filter=False, # use only if 3D structure is an AlphaFold model (or similar) to remove low pLDDT regions from contacts
 )
 
