@@ -108,6 +108,10 @@ Compute RSA from the biologically relevant conformation, include inter-chain con
 - Python packages `numpy` and `biopython` (version 1.75 or later)
 - A C++ compiler that supports C++17 (such as GCC, LLVM or MSVC).
 
+### Releases
+
+See the [release notes](RELEASE_NOTES.md) for version history and changes between versions.
+
 ## Credits
 - For inferring the DCA coefficients, StructureDCA uses a gradient descent solver: [L-BFGS](https://github.com/chokkan/liblbfgs "libLBFGS") by Naoaki Okazaki (which is included in this repo).
 - The part of the code that makes the bridge between Python and C++ is inspired from the [plmDCA implementation 'pycofitness'](https://github.com/KIT-MBS/pycofitness/) by Mehari B. Zerihun, Fabrizio Pucci.
