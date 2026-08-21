@@ -2,13 +2,17 @@
 # Imports ----------------------------------------------------------------------
 import os.path
 from typing import List, Dict, Union
+import warnings
 import numpy as np
 from numpy.typing import NDArray
+from Bio.PDB.Polypeptide import PPBuilder
+from Bio.PDB.Structure import Structure as BPStructure
+from Bio.PDB.Model import Model as BPModel
+from Bio.PDB.Residue import Residue as BPResidue
+from Bio.PDB.SASA import ShrakeRupley
 from structuredca.utils import Logger
-from structuredca.sequence import AminoAcid
-from structuredca.structure import Residue
-from structuredca.sequence import Sequence, PairwiseAlignment
-from structuredca.structure.rsa import RSABiopython
+from structuredca.sequence import AminoAcid, Sequence, PairwiseAlignment
+from structuredca.structure import Residue, StructureReader, read_rsa_map, write_rsa_map
 
 
 # Main -------------------------------------------------------------------------
@@ -18,7 +22,15 @@ class Structure:
 
 
     # Constants ----------------------------------------------------------------
+
+    # Input validation constants
     ACCEPTED_CHAIN_DESCRIPTORS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+    ACCEPTED_EXTENTIONS = StructureReader.ACCEPTED_EXTENTIONS
+
+    # Atoms values
+    BACKBONE_ATOMS = Residue.BACKBONE_ATOMS
+    GLY_BACKBONE_ATOMS = Residue.GLY_BACKBONE_ATOMS
+    HYDROGEN_ATOMS_PREFIXES = Residue.HYDROGEN_ATOMS_PREFIXES
 
 
     # Constructor --------------------------------------------------------------
@@ -61,25 +73,33 @@ class Structure:
 
         # Guardians
         if not isinstance(pdb_path, Sequence):
-            assert os.path.isfile(pdb_path),  f"ERROR in Structure(): pdb_path='{pdb_path}' file does not exists."
-            assert pdb_path.endswith(".pdb"), f"ERROR in Structure(): pdb_path='{pdb_path}' should be a '.pdb' file."
-            assert len(target_chains) == len(set(target_chains)), f"ERROR in Structure(): target_chains='{target_chains}' can not contain any repeating characters."
+            if not os.path.isfile(pdb_path):
+                raise FileNotFoundError(f"ERROR in Structure(): pdb_path='{pdb_path}' file does not exists.")
+            if not StructureReader.has_valid_extention(pdb_path):
+                raise ValueError(f"ERROR in Structure(): pdb_path='{pdb_path}' should have extention among {StructureReader.ACCEPTED_EXTENTIONS}.")
+            if len(target_chains) != len(set(target_chains)):
+                raise ValueError(f"ERROR in Structure(): target_chains='{target_chains}' can not contain any repeating characters.")
             for chain in target_chains:
-                assert chain in self.ACCEPTED_CHAIN_DESCRIPTORS, f"ERROR in Structure(): target_chains='{target_chains}' contain not allowed characted '{chain}' (allowed: '{self.ACCEPTED_CHAIN_DESCRIPTORS}')."
+                if chain not in self.ACCEPTED_CHAIN_DESCRIPTORS:
+                    raise ValueError(
+                        f"ERROR in Structure(): target_chains='{target_chains}' contain forbidden character '{chain}' "
+                        f" -> allowed characters: '{self.ACCEPTED_CHAIN_DESCRIPTORS}'."
+                    )
 
         # Set base properties
         if isinstance(pdb_path, Sequence): # Case: create fully-connected decoy Structure
             self.pdb_path = f"{pdb_path.name}_full.pdb"
             self.pdb_name = f"{pdb_path.name}_full"
         else:
-            self.pdb_path = pdb_path
-            self.pdb_name = os.path.basename(self.pdb_path).removesuffix(".pdb")
+            self.pdb_path = str(pdb_path)
+            self.pdb_name = StructureReader.get_pdb_name(self.pdb_path)
         self.target_chains = target_chains
         self.name = f"{self.pdb_name}_{self.target_chains}"
-        self.ignore_hydrogen_atoms = ignore_hydrogen_atoms
-        self.ignore_backbone_atoms = ignore_backbone_atoms
+        self.ignore_hydrogen_atoms = bool(ignore_hydrogen_atoms)
+        self.ignore_backbone_atoms = bool(ignore_backbone_atoms)
         self.distance_cache_path = distance_cache_path
-        self.solve_rsa = solve_rsa
+        self.solve_rsa = bool(solve_rsa)
+        self.solve_distances = bool(solve_distances)
         self.rsa_cache_path = rsa_cache_path
         self.homomeric_chains = homomeric_chains
 
@@ -95,7 +115,7 @@ class Structure:
             return
 
         # Parse Structure
-        self.logger.step(f"Parse PDB structure '{self.pdb_name}' (target chains '{target_chains}').")
+        self.logger.step(f"Parse 3D structure '{self.pdb_name}' (target chains '{target_chains}').")
         self.all_chains: str = ""
         self.residues: List[Residue] = []
         self.target_residues: List[Residue] = []
@@ -107,14 +127,10 @@ class Structure:
         self._map_homomeric_chains()
 
         # Compute distance matrix
-        self.logger.step(f"Compute structural properties.")
+        self.logger.step(f"Compute distances.")
         self.distance_matrix: NDArray[np.float32] = np.zeros([0, 0], dtype=np.float32)
-        if solve_distances:
+        if self.solve_distances:
             self._compute_distance_matrix()
-
-        # Solve RSA
-        if solve_rsa:
-            self._assign_rsa()
 
         # plDDT sanity check: if all plDDTs are 0, they are all set to 100
         self._sanitize_plddt()
@@ -155,96 +171,106 @@ class Structure:
         self.distance_matrix = np.zeros((L, L), dtype=np.float32)
 
     def _parse_structure(self) -> None:
-        """Parse residues data from PDB file."""
+        """Parse residues data from 3D structure file."""
 
-        # Parse sequence
-        model_counter = 0
-        current_chain = None
-        opened_chains, closed_chains = set(), set()
+        # Parse structure with biopython
+        self.logger.log(f" * parse 3D structure file")
+        bp_structure: BPStructure = StructureReader.read_biopython_structure(self.pdb_path)
 
-        # Init backbone atoms
-        BACKBONE_ATOMS = ["N", "H", "H1", "H2", "H3", "1H", "2H", "3H", "CA", "HA", "C", "O", "OXT"]
-        GLY_BACKBONE_ATOMS = ["N", "H", "H1", "H2", "H3", "1H", "2H", "3H", "C", "O", "OXT"] # keep C-apha since GLY has no side-chains
+        # Assign EXPDTA (experimental method)
+        bp_header: dict
+        try:
+            bp_header = bp_structure.header
+        except:
+            bp_header = {}
+        self.expdta_line = bp_header.get("structure_method", None)
+        if isinstance(self.expdta_line, str):
+            self.expdta_line = self.expdta_line.upper()
 
-        # Init hydrogen atoms prefixes
-        HYDROGEN_PREFIXES = ["H", "1H", "2H", "3H"]
+        # Manage multiple models: consider only model 1
+        bp_model_0: BPModel = bp_structure[0]
+        if len(bp_structure) > 1:
+            self.logger.warning(f"3D structure contains multiple models ({len(bp_structure)}), but only model 0 will be considered.")
 
-        # Parse PDB residues
-        with open(self.pdb_path, "r", encoding="ISO-8859-1") as fs:
-            line = fs.readline()
-            while line:
-                prefix = line[0:6]
-                
-                # Atom line
-                if prefix == "ATOM  " or prefix == "HETATM":
+        # Remove hydrogen atoms if required
+        # -> do before evaluating RSA for consistency between structures with and without hydrogen atoms
+        # -> for example X-ray 3D structures has no hydrogen atoms but some AlphaFold models do
+        if self.ignore_hydrogen_atoms:
+            for bp_chain in bp_model_0:
+                for bp_residue in bp_chain:
+                    atoms_to_remove = []
+                    for bp_atom in bp_residue:
+                        atom_id = bp_atom.id
+                        if any([atom_id.startswith(hp) for hp in self.HYDROGEN_ATOMS_PREFIXES]):
+                            atoms_to_remove.append(atom_id)
+                    for atom_id in atoms_to_remove:
+                        bp_residue.detach_child(atom_id)
 
-                    # Ignore hydrogen atoms if required
-                    atom_type = line[12:16].replace(" ", "")
-                    if self.ignore_hydrogen_atoms and any([atom_type.startswith(hp) for hp in HYDROGEN_PREFIXES]):
-                        line = fs.readline()
+        # Compute SASA with biopython
+        rsa_map = {}
+        if self.solve_rsa:
+            if self.rsa_cache_path is not None and os.path.isfile(self.rsa_cache_path):
+                self.logger.log(f" * read RSA values from rsa_cache_path '{self.rsa_cache_path}'")
+                rsa_map = read_rsa_map(self.rsa_cache_path)
+                for bp_chain in bp_model_0: # guarantee residue.sasa property to avoid eventual bugs
+                    for bp_residue in bp_chain:
+                        bp_residue.sasa = None
+            else:
+                rsa_map = None # set rsa_map to None so that RSA is taken from Biopython ShrakeRupley
+                self.logger.log(f" * solve RSA values using Shrake & Rupley algorithm")
+                ShrakeRupley().compute(bp_model_0, level="R")
+
+        # Extract residues information
+        self.logger.log(f" * process structure object")
+        bp_residue: BPResidue
+        n_residues_failed_to_parse = 0
+        n_residues_without_coords = 0
+        n_residues_total = 0
+        warnings.filterwarnings("ignore", category=UserWarning, module="Bio.PDB.Polypeptide")
+        for bp_chain in bp_model_0:
+            peptides = PPBuilder().build_peptides(bp_chain, aa_only=0) # use PPBuilder to keep only protein chains and exclude ligands
+            for peptide in peptides:
+                for bp_residue in peptide:
+
+                    # Parse residue
+                    n_residues_total += 1
+                    try:
+                        residue = Residue.from_biopython_residue(
+                            bp_residue,
+                            ignore_backbone_atoms=self.ignore_backbone_atoms,
+                            rsa_map=rsa_map,
+                        )
+                    except:
+                        n_residues_failed_to_parse += 1
                         continue
 
-                    # Ignore backbone atoms if required
-                    aa_three = line[17:20]
-                    if self.ignore_backbone_atoms:
-                        if aa_three == "GLY":
-                            if atom_type in GLY_BACKBONE_ATOMS:
-                                line = fs.readline()
-                                continue
-                        else:
-                            if atom_type in BACKBONE_ATOMS:
-                                line = fs.readline()
-                                continue
-
-                    current_chain = line[21]
-                    if current_chain in closed_chains: # discard ATOM line if chain is closed
-                        line = fs.readline()
+                    # Set residue
+                    if residue.coords.size == 0:
+                        n_residues_without_coords += 1
                         continue
-                    position = line[22:26].replace(" ", "")
-                    aa = AminoAcid.parse_three(aa_three)
-                    if aa.is_unknown(): # discard non amino acid ATOM lines
-                        line = fs.readline()
-                        continue
-                    if current_chain not in opened_chains:
-                        opened_chains.add(current_chain)
-                        self.all_chains += current_chain
-                    resid = current_chain + position
-                    coord = np.array([np.float32(line[30:38]), np.float32(line[38:46]), np.float32(line[46:54])], dtype=np.float32)
-                    if resid in self.residues_map:
-                        self.residues_map[resid].coords.append(coord)
-                    else:
-                        plddt = np.float32(line[60:66])
-                        residue = Residue(current_chain, position, aa, coords=[coord], plddt=plddt)
-                        self.residues.append(residue)
-                        self.residues_map[resid] = residue
-                
-                # Manage multiple models: consider only model 1
-                elif prefix == "MODEL ":
-                    model_counter += 1
-                    if model_counter > 1:
-                        self.logger.warning(f"PDB contains multiple models, but only model 1 will be considered.")
-                        break
+                    self.residues.append(residue)
+                    self.residues_map[residue.resid] = residue
 
-                # Manage closed chains: ATOMS that appears after the chain is closed are not part of the protein chain
-                elif prefix == "TER   " or prefix == "TER\n":
-                    if current_chain is not None:
-                        closed_chains.add(current_chain)
+        # Residues parsing warnings
+        if n_residues_failed_to_parse > 0:
+            self.logger.warning(
+                f"failed to parse some residues from structure:"
+                f" {n_residues_failed_to_parse} / {n_residues_total}"
+            )
+        if n_residues_without_coords > 0:
+            self.logger.warning(
+                f"some residues from structure were ignored because they have no atoms usable by StructureDCA:"
+                f" {n_residues_without_coords} / {n_residues_total}"
+            )
 
-                # Find EXPDTA line (if it exists)
-                elif prefix == "EXPDTA":
-                    self.expdta_line = line
-
-                line = fs.readline()
-
-        # Verify target chains existance in PDB
+        # Set all_chains (non-redundent string of all chains)
+        self.all_chains = "".join(dict.fromkeys([res.chain for res in self.residues]))
         for chain in self.target_chains:
-            assert chain in self.all_chains, f"ERROR in {self}: target chain '{chain}' not found among chains contained in the PDB ('{self.all_chains}')."
+            if chain not in self.all_chains:
+                raise ValueError(f"ERROR in {self}: target chain '{chain}' not found among chains contained in the 3D structure ('{self.all_chains}').")
 
-        # Set residues coordinates to numpy
-        for residue in self.residues:
-            residue.coords = np.array(residue.coords)
-
-        # Order residues (by chain order from target_chains) and create target_residues
+        # Order residues + set target_residues
+        # -> order: (1) residues from target_chains; (2) other residues
         residues_ordered: List[Residue] = []
         for chain in self.target_chains:
             for residue in self.residues:
@@ -262,6 +288,16 @@ class Structure:
             if chain not in self.target_chains:
                 all_chains_ordered += chain
         self.all_chains = all_chains_ordered
+
+        # Check RSA coherence
+        if self.solve_rsa:
+            self._verify_rsa_values()
+
+        # Write RSA cache
+        if self.rsa_cache_path is not None and not os.path.isfile(self.rsa_cache_path):
+            self.logger.log(f" * save RSA values to rsa_cache_path '{self.rsa_cache_path}'")
+            rsa_map = {res.resid: res.rsa for res in self.residues if res.rsa is not None}
+            write_rsa_map(self.rsa_cache_path, rsa_map)
 
         # Log
         self.logger.log(f" * target chains: '{self.target_chains}' (l={len(self.target_residues)})")
@@ -397,7 +433,7 @@ class Structure:
                 self.save_distance_matrix(self.distance_cache_path)
 
     def _sanitize_plddt(self) -> None:
-        """ If plDDT of all residues is 0, they are all set to 100 """
+        """If pLDDT of all residues is 0 (meaning pLDDT is missing), they are all set to 100."""
         
         plddt_is_set = False
 
@@ -412,33 +448,6 @@ class Structure:
             self.logger.warning("All residues in PDB file have plDDT=0. They were all set to 100.")
             for residue in self.residues:
                 residue.plddt = 100.0
-
-    def _assign_rsa(self) -> None:
-        """Assign RSA to residues of the Structure using an RSA Solver."""
-        
-        # Solve RSA
-        solver = RSABiopython(verbose=self.logger.verbose)
-        rsa_map = solver.run(self.pdb_path, rsa_cache_path=self.rsa_cache_path)
-
-        # Fill RSA
-        n_assigned_tot, n_assigned_target_chains = 0, 0
-        for residue in self.residues:
-            resid = residue.resid
-            if resid in rsa_map:
-                n_assigned_tot += 1
-                if resid[0] in self.target_chains:
-                    n_assigned_target_chains += 1
-                residue.rsa = rsa_map[resid]
-
-        # No RSA error
-        if n_assigned_tot == 0:
-            raise ValueError(f"ERROR in Structure(): {solver} gives zero RSA values for PDB '{self.pdb_path}'.")
-        if n_assigned_target_chains == 0:
-            raise ValueError(f"ERROR in Structure(): {solver} gives zero RSA values for target chains '{self.target_chains}' of PDB '{self.pdb_path}'.")
-
-        # Log
-        self.logger.log(f" * assigned RSA values: {n_assigned_target_chains} / {len(self.target_residues)} ")
-        self._verify_rsa_values()
 
 
 	# Base Properties ----------------------------------------------------------
@@ -542,8 +551,22 @@ class Structure:
         assert self.distance_matrix.shape == (L, L), f"ERROR in {self}.load_distance_matrix(): matrix shape {self.distance_matrix.shape} does not match length {L} of target chains {self.target_chains}."
         return self
 
+
+    # Dependencies -------------------------------------------------------------
     def _verify_rsa_values(self) -> None:
-        """Warnings for non-assigned RSA residues."""
+        """Warnings and Errors for non-assigned RSA residues."""
+
+        # No RSA errors
+        if all(res.rsa is None for res in self.residues):
+            raise ValueError(f"ERROR in Structure(): zero RSA values for 3D structure '{self.pdb_path}'.")
+        if all(res.rsa is None for res in self.target_residues):
+            raise ValueError(f"ERROR in Structure(): zero RSA values for target chains '{self.target_chains}' of 3D structure '{self.pdb_path}'.")
+
+        # Log RSA state
+        n_assigned_target_chains = sum(res.rsa is not None for res in self.target_residues)
+        self.logger.log(f" * assigned RSA values: {n_assigned_target_chains} / {len(self.target_residues)} ")
+
+        # Some missing RSA warnings
         norsa_std, norsa_non_std = 0, 0
         for residue in self.target_residues:
             if residue.rsa is None:
@@ -553,7 +576,9 @@ class Structure:
                     norsa_non_std += 1
         norsa = norsa_std + norsa_non_std
         if norsa > 0:
-            warning_log = f"{norsa} / {len(self.target_residues)} residues with no assigned RSA values ({norsa_std} std and {norsa_non_std} non-std) in PDB target chains '{self.target_chains}'."
-            warning_log += "\n   -> This can be caused by non-standard AAs or missing atoms."
-            warning_log += "\n   -> For optimal RSA estimations, we highly recommend to 'repair' the PDB and standardize AAs."
-            self.logger.warning(warning_log)
+            self.logger.warning(
+                f"{norsa} / {len(self.target_residues)} residues with no assigned RSA values "
+                f"({norsa_std} std and {norsa_non_std} non-std) in PDB target chains '{self.target_chains}'."
+                "\n   -> This can be caused by non-standard AAs or missing atoms."
+                "\n   -> For optimal RSA estimations, we recommend to 'repair' the PDB and standardize AAs."
+            )

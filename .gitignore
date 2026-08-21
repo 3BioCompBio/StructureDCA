@@ -3,6 +3,8 @@ __pycache__/
 build/
 dist/
 structuredca.egg-info/
+.github/
+.vscode/
 
 # Ignore notes, experiments and tests files
 0_*

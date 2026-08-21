@@ -99,7 +99,7 @@ class StructureDCA:
             count target (first) sequence of the MSA for the DCA model
 
         ignore_hydrogen_atoms : bool, default=True
-            ignore hydrogen atoms to compute res-res distances 
+            ignore hydrogen atoms to compute res-res distances and RSA
         ignore_backbone_atoms : bool, default=True
             ignore backbone atoms to compute res-res distances 
 

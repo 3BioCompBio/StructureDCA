@@ -1,0 +1,17 @@
+# Ignore everything
+*
+
+# But not these files
+!.gitignore
+!6acv_A_29-94.fasta
+!6acv_A_29-94.csv
+!6acv_A_29-94.pdb
+!3spu.pdb
+!5yd7.pdb
+!5ceg_8mer.pdb
+!cMSA_ParE-ParD.a3m
+!B1-beta-lactamases_msa.fasta
+!NDM1_trimmed_ungapped.fasta
+!VIM2_trimmed_ungapped.fasta
+!NDM1_trimmed.fasta
+!VIM2_trimmed.fasta
